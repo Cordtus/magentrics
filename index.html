@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
+  <title>Codex Usage</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080c0f;
+      --surface: #0d1317;
+      --surface-raised: #111a1f;
+      --surface-hover: #142027;
+      --rule: #223139;
+      --rule-strong: #30434c;
+      --text: #ecf4f2;
+      --text-soft: #b2c0c0;
+      --muted: #78898c;
+      --accent: #55e3c3;
+      --accent-strong: #7aecd3;
+      --accent-ink: #051411;
+      --danger: #ff8d86;
+      --danger-bg: #211313;
+      --focus: #a2f5e2;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --page-gutter: clamp(1rem, 3.2vw, 3.25rem);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 20rem;
+      background: var(--bg);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      text-rendering: optimizeLegibility;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    .file-action:focus-within,
+    [tabindex="-1"]:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .app-shell {
+      width: min(100%, 108rem);
+      margin: 0 auto;
+      padding: 0 var(--page-gutter) 4rem;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2rem;
+      align-items: end;
+      min-height: 10.5rem;
+      padding: 2.5rem 0 2rem;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    h1,
+    h2,
+    p,
+    dl,
+    dd {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 0.55rem;
+      font-size: clamp(2.1rem, 4.5vw, 4.75rem);
+      font-weight: 620;
+      letter-spacing: -0.055em;
+      line-height: 0.98;
+    }
+
+    .dataset-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.65rem;
+      align-items: center;
+      margin: 0;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    .dataset-meta .source-label {
+      color: var(--text-soft);
+    }
+
+    .meta-separator {
+      color: var(--rule-strong);
+      user-select: none;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 0.2rem;
+    }
+
+    .file-action {
+      display: inline-flex;
+      min-height: 2.75rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.7rem;
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--accent);
+      border-radius: 0.3rem;
+      background: var(--accent);
+      color: var(--accent-ink);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 760;
+      letter-spacing: 0.015em;
+      transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+
+    .file-action::before {
+      content: "+";
+      font-family: var(--mono);
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .file-action:hover {
+      border-color: var(--accent-strong);
+      background: var(--accent-strong);
+      transform: translateY(-1px);
+    }
+
+    .file-action.is-loading {
+      cursor: wait;
+      opacity: 0.68;
+      transform: none;
+    }
+
+    .notice {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      margin: 1rem 0 0;
+      padding: 0.9rem 1rem;
+      border-left: 2px solid var(--danger);
+      background: var(--danger-bg);
+      color: #ffd0cc;
+      font-size: 0.825rem;
+    }
+
+    .notice strong {
+      display: block;
+      margin-bottom: 0.15rem;
+      color: #fff1ef;
+      font-weight: 700;
+    }
+
+    .notice p {
+      margin-bottom: 0;
+    }
+
+    .notice-dismiss {
+      align-self: start;
+      padding: 0.25rem 0.45rem;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    .chart-status {
+      margin: 1rem 0 0;
+      padding: 0.8rem 0;
+      border-bottom: 1px solid var(--rule);
+      color: var(--text-soft);
+      font-size: 0.8rem;
+    }
+
+    .empty-state {
+      display: grid;
+      min-height: 28rem;
+      place-items: center;
+      border-bottom: 1px solid var(--rule);
+      text-align: center;
+    }
+
+    .empty-state-inner {
+      width: min(100%, 34rem);
+    }
+
+    .empty-state h2 {
+      margin-bottom: 0.65rem;
+      font-size: clamp(1.35rem, 3vw, 2rem);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+
+    .empty-state p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .summary-band {
+      padding: 1.4rem 0 1.65rem;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .summary-heading {
+      margin-bottom: 1.3rem;
+    }
+
+    .user-detail-control {
+      display: grid;
+      gap: 0.35rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .user-detail-select {
+      min-width: 11rem;
+      min-height: 2.2rem;
+      padding: 0.35rem 2rem 0.35rem 0.65rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.35rem;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: normal;
+      text-transform: none;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      margin: 0;
+    }
+
+    .metric {
+      min-width: 0;
+      padding: 0.2rem clamp(0.8rem, 1.8vw, 1.65rem);
+      border-left: 1px solid var(--rule);
+    }
+
+    .metric:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .metric:last-child {
+      padding-right: 0;
+    }
+
+    .metric dt {
+      margin-bottom: 0.55rem;
+      color: var(--muted);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .metric dd {
+      margin-bottom: 0;
+    }
+
+    .metric-value {
+      display: block;
+      margin-bottom: 0.35rem;
+      overflow: hidden;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: clamp(1.25rem, 1.9vw, 1.85rem);
+      font-variant-numeric: tabular-nums;
+      font-weight: 630;
+      letter-spacing: -0.045em;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric small {
+      display: block;
+      min-height: 1.2em;
+      color: var(--muted);
+      font-size: 0.68rem;
+      line-height: 1.35;
+    }
+
+    .dashboard-section {
+      min-width: 0;
+      padding: clamp(1.75rem, 4vw, 3.4rem) 0;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1.5rem;
+      align-items: end;
+      margin-bottom: 1.4rem;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+      font-weight: 590;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+
+    .section-description {
+      max-width: 44rem;
+      margin: 0.45rem 0 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .toggle-group {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.35rem;
+      background: var(--surface);
+    }
+
+    .toggle-button {
+      min-height: 2rem;
+      padding: 0.35rem 0.72rem;
+      border: 0;
+      border-radius: 0.22rem;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.035em;
+      text-transform: uppercase;
+      transition: background-color 140ms ease, color 140ms ease;
+    }
+
+    .toggle-button:hover {
+      color: var(--text);
+    }
+
+    .toggle-button[aria-pressed="true"] {
+      background: var(--surface-hover);
+      color: var(--accent);
+    }
+
+    .chart-frame {
+      position: relative;
+      height: clamp(18rem, 34vw, 29rem);
+      min-height: 18rem;
+      padding-top: 0.4rem;
+    }
+
+    .chart-frame.compact {
+      height: clamp(20rem, 31vw, 25rem);
+    }
+
+    .chart-frame.models {
+      height: clamp(28rem, 44vw, 36rem);
+    }
+
+    .chart-frame.monthly {
+      height: clamp(20rem, 32vw, 26rem);
+    }
+
+    .chart-frame canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .chart-fallback {
+      display: grid;
+      height: 100%;
+      min-height: 15rem;
+      place-items: center;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .table-scroll {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-color: var(--rule-strong) transparent;
+    }
+
+    .chart-data-disclosure {
+      margin-top: 1rem;
+      border-top: 1px solid var(--rule);
+      color: var(--text-soft);
+    }
+
+    .chart-data-disclosure summary {
+      width: fit-content;
+      padding: 0.75rem 0;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.045em;
+      text-transform: uppercase;
+    }
+
+    .chart-data-disclosure summary:hover,
+    .chart-data-disclosure summary:focus-visible {
+      color: var(--accent);
+    }
+
+    .chart-data-disclosure .table-scroll {
+      max-height: 24rem;
+      margin-bottom: 0.75rem;
+      overflow-y: auto;
+    }
+
+    .chart-data-disclosure table {
+      min-width: 42rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      color: var(--text-soft);
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #model-table {
+      min-width: 35rem;
+    }
+
+    #monthly-table {
+      min-width: 52rem;
+    }
+
+    th,
+    td {
+      padding: 0.82rem 0.8rem;
+      border-bottom: 1px solid var(--rule);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th:first-child,
+    td:first-child {
+      padding-left: 0;
+      text-align: left;
+    }
+
+    th:last-child,
+    td:last-child {
+      padding-right: 0;
+    }
+
+    thead th {
+      color: var(--muted);
+      font-size: 0.63rem;
+      font-weight: 740;
+      letter-spacing: 0.075em;
+      text-transform: uppercase;
+    }
+
+    tbody tr {
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+
+    tbody tr:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .model-name,
+    .month-name {
+      color: var(--text);
+      font-family: var(--mono);
+      font-weight: 650;
+    }
+
+    .fallback-count[data-has-fallback="true"] {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .table-empty {
+      padding: 2.5rem 0;
+      color: var(--muted);
+      text-align: left;
+    }
+
+    .drop-overlay {
+      position: fixed;
+      z-index: 50;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+      background: rgb(8 12 15 / 88%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease;
+    }
+
+    .drop-overlay-inner {
+      display: grid;
+      width: min(100%, 38rem);
+      min-height: 18rem;
+      place-items: center;
+      padding: 2rem;
+      border: 1px dashed var(--accent);
+      background: var(--surface-raised);
+      text-align: center;
+      transform: translateY(0.75rem) scale(0.985);
+      transition: transform 150ms ease;
+    }
+
+    .drop-overlay strong {
+      display: block;
+      font-size: clamp(1.25rem, 3vw, 2rem);
+      font-weight: 620;
+      letter-spacing: -0.035em;
+    }
+
+    body.is-dragging .drop-overlay {
+      opacity: 1;
+    }
+
+    body.is-dragging .drop-overlay-inner {
+      transform: translateY(0) scale(1);
+    }
+
+    .dashboard-main > *,
+    .empty-state {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+
+    body.is-ready .dashboard-main > *,
+    body.is-ready .empty-state {
+      animation: enter 360ms ease forwards;
+    }
+
+    body.is-ready .dashboard-main > *:nth-child(2) {
+      animation-delay: 45ms;
+    }
+
+    body.is-ready .dashboard-main > *:nth-child(3) {
+      animation-delay: 90ms;
+    }
+
+    body.is-ready .dashboard-main > *:nth-child(4) {
+      animation-delay: 135ms;
+    }
+
+    @keyframes enter {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 74rem) {
+      .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        row-gap: 1.5rem;
+      }
+
+      .metric:nth-child(4) {
+        padding-left: 0;
+        border-left: 0;
+      }
+
+    }
+
+    @media (max-width: 42rem) {
+      .app-shell {
+        padding-bottom: 2.5rem;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        gap: 1.35rem;
+        align-items: start;
+        min-height: 0;
+        padding: 2rem 0 1.5rem;
+      }
+
+      h1 {
+        font-size: clamp(2.25rem, 14vw, 3.6rem);
+      }
+
+      .header-actions,
+      .file-action {
+        width: 100%;
+      }
+
+      .dataset-meta {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      .meta-separator {
+        display: none;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 1.4rem;
+      }
+
+      .metric,
+      .metric:nth-child(4) {
+        padding: 0 0.85rem;
+        border-left: 1px solid var(--rule);
+      }
+
+      .metric:nth-child(odd) {
+        padding-left: 0;
+        border-left: 0;
+      }
+
+      .metric:nth-child(even) {
+        padding-right: 0;
+      }
+
+      .metric-value {
+        font-size: clamp(1.1rem, 5.6vw, 1.45rem);
+      }
+
+      .section-heading {
+        grid-template-columns: 1fr;
+        gap: 0.9rem;
+        align-items: start;
+      }
+
+      .toggle-group {
+        justify-self: start;
+      }
+
+      .chart-frame,
+      .chart-frame.compact {
+        height: 21rem;
+      }
+
+      .chart-frame.models {
+        height: 31rem;
+      }
+
+      .chart-frame.monthly {
+        height: 22rem;
+      }
+
+      th,
+      td {
+        padding-right: 0.65rem;
+        padding-left: 0.65rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Codex Usage</h1>
+        <p class="dataset-meta" aria-live="polite">
+          <span class="source-label" id="source-label">Loading data</span>
+          <span class="meta-separator" aria-hidden="true">/</span>
+          <span id="date-range">Date range unavailable</span>
+          <span class="meta-separator" aria-hidden="true">/</span>
+          <span id="latest-record">Updated —</span>
+        </p>
+      </div>
+      <div class="header-actions">
+        <label class="file-action" id="file-action">
+          <span id="file-action-text">Load JSON</span>
+          <input class="visually-hidden" id="file-input" type="file" accept=".json,application/json" aria-describedby="file-help">
+        </label>
+        <span class="visually-hidden" id="file-help">Select or drop a ccusage Codex JSON file.</span>
+      </div>
+    </header>
+
+    <section class="notice" id="error-region" role="alert" tabindex="-1" hidden>
+      <div>
+        <strong id="error-title">Data could not be loaded</strong>
+        <p id="error-message"></p>
+      </div>
+      <button class="notice-dismiss" id="dismiss-error" type="button" aria-label="Dismiss error">Dismiss</button>
+    </section>
+
+    <p class="chart-status" id="chart-status" role="status" hidden></p>
+
+    <section class="empty-state" id="empty-state">
+      <div class="empty-state-inner">
+        <h2>No usage data</h2>
+        <p>Load or drop a ccusage Codex JSON file.</p>
+      </div>
+    </section>
+
+    <main class="dashboard-main" id="dashboard" hidden>
+      <section class="summary-band" aria-labelledby="summary-heading">
+        <div class="section-heading summary-heading">
+          <div>
+            <h2 id="summary-heading">Account total</h2>
+            <p class="section-description" id="detail-description">Combined usage across all bundled users.</p>
+          </div>
+          <label class="user-detail-control" id="user-detail-control" hidden>
+            Detail view
+            <select class="user-detail-select" id="user-detail-select" aria-label="Usage detail view"></select>
+          </label>
+        </div>
+        <dl class="summary-grid" id="summary-grid"></dl>
+      </section>
+
+      <section class="dashboard-section" id="user-comparison-section" aria-labelledby="user-comparison-heading" hidden>
+        <div class="section-heading">
+          <div>
+            <h2 id="user-comparison-heading">Usage by user</h2>
+            <p class="section-description">Individual usage stays separate; the account-total line is their combined usage.</p>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="user-comparison-chart" role="img" aria-label="Total tokens over time by user and account total" aria-describedby="user-comparison-description"></canvas>
+          <p class="visually-hidden" id="user-comparison-description">Separate token totals for each user and the combined account total. Exact totals are listed in the data table.</p>
+          <p class="chart-fallback" id="user-comparison-fallback" hidden>User comparison chart unavailable.</p>
+        </div>
+        <details class="chart-data-disclosure">
+          <summary>View data</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Usage by user data">
+            <table>
+              <caption class="visually-hidden">Cost, total tokens, and active days by user and account total</caption>
+              <thead>
+                <tr>
+                  <th scope="col">View</th>
+                  <th scope="col">Estimated cost</th>
+                  <th scope="col">Total tokens</th>
+                  <th scope="col">Active days</th>
+                </tr>
+              </thead>
+              <tbody id="user-comparison-data-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="timeline-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="timeline-heading">Usage over time</h2>
+          </div>
+          <div class="toggle-group" id="granularity-toggle" role="group" aria-label="Timeline aggregation">
+            <button class="toggle-button" type="button" data-granularity="daily" aria-pressed="true">Daily</button>
+            <button class="toggle-button" type="button" data-granularity="weekly" aria-pressed="false">Weekly</button>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="timeline-chart" role="img" aria-label="Estimated cost and total tokens over time" aria-describedby="timeline-chart-description"></canvas>
+          <p class="visually-hidden" id="timeline-chart-description">Estimated cost and total tokens for the selected period. Values are also listed in the data table.</p>
+          <p class="chart-fallback" id="timeline-fallback" hidden>Usage chart unavailable.</p>
+        </div>
+        <details class="chart-data-disclosure">
+          <summary>View data</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Timeline chart data">
+            <table>
+              <caption class="visually-hidden">Cost and total tokens for the selected period</caption>
+              <thead>
+                <tr>
+                  <th scope="col" id="timeline-period-heading">Date</th>
+                  <th scope="col">Estimated cost</th>
+                  <th scope="col">Total tokens</th>
+                  <th scope="col">Recorded days</th>
+                </tr>
+              </thead>
+              <tbody id="timeline-data-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="composition-heading">
+          <div class="section-heading">
+            <div>
+              <h2 id="composition-heading">Token usage</h2>
+              <p class="section-description">Reasoning is included in output.</p>
+            </div>
+            <div class="toggle-group" id="scale-toggle" role="group" aria-label="Token chart scale">
+              <button class="toggle-button" type="button" data-scale="logarithmic" aria-pressed="true">Log</button>
+              <button class="toggle-button" type="button" data-scale="linear" aria-pressed="false">Linear</button>
+            </div>
+          </div>
+          <div class="chart-frame compact">
+            <canvas id="composition-chart" role="img" aria-label="Input, output, reasoning, and cache tokens over time" aria-describedby="composition-chart-description"></canvas>
+            <p class="visually-hidden" id="composition-chart-description">Input, output, reasoning, and cache tokens by date. Reasoning is included in output.</p>
+            <p class="chart-fallback" id="composition-fallback" hidden>Token chart unavailable.</p>
+          </div>
+          <details class="chart-data-disclosure">
+            <summary>View data</summary>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Token usage chart data">
+              <table>
+                <caption class="visually-hidden">Input, output, reasoning, and cache tokens by date</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Input</th>
+                    <th scope="col">Output</th>
+                    <th scope="col">Reasoning</th>
+                    <th scope="col">Cache read</th>
+                    <th scope="col">Cache creation</th>
+                  </tr>
+                </thead>
+                <tbody id="composition-data-body"></tbody>
+              </table>
+            </div>
+          </details>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="models-heading">
+          <div class="section-heading">
+            <div>
+              <h2 id="models-heading">Models</h2>
+              <p class="section-description">Fallbacks count days, not requests.</p>
+            </div>
+          </div>
+        <div class="chart-frame models">
+          <canvas id="models-chart" role="img" aria-label="Total tokens by model" aria-describedby="models-chart-description"></canvas>
+          <p class="visually-hidden" id="models-chart-description">Models ranked by total tokens. Exact usage and fallback values are listed in the data table.</p>
+          <p class="chart-fallback" id="models-fallback" hidden>Model chart unavailable.</p>
+        </div>
+        <details class="chart-data-disclosure">
+          <summary>View data</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Model chart data">
+              <table id="model-table">
+                <caption class="visually-hidden">Token and fallback usage by model</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Model</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Output</th>
+                    <th scope="col">Reasoning</th>
+                    <th scope="col">Active days</th>
+                    <th scope="col">Fallbacks</th>
+                  </tr>
+                </thead>
+                <tbody id="model-table-body"></tbody>
+              </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="monthly-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="monthly-heading">Monthly usage</h2>
+          </div>
+        </div>
+        <div class="chart-frame monthly">
+          <canvas id="monthly-chart" role="img" aria-label="Monthly total tokens and estimated cost" aria-describedby="monthly-chart-description"></canvas>
+          <p class="visually-hidden" id="monthly-chart-description">Total tokens and estimated cost by month. Missing months appear as gaps. Exact values are listed in the data table.</p>
+          <p class="chart-fallback" id="monthly-fallback" hidden>Monthly chart unavailable.</p>
+        </div>
+        <details class="chart-data-disclosure">
+          <summary>View data</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Monthly chart data">
+            <table id="monthly-table">
+              <caption class="visually-hidden">Monthly cost and token usage</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Est. cost</th>
+                  <th scope="col">Total tokens</th>
+                  <th scope="col">Output</th>
+                  <th scope="col">Reasoning</th>
+                  <th scope="col">Cache share</th>
+                  <th scope="col">Active days</th>
+                </tr>
+              </thead>
+              <tbody id="monthly-table-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="cumulative-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="cumulative-heading">Cumulative usage</h2>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="cumulative-chart" role="img" aria-label="Cumulative estimated cost and total tokens" aria-describedby="cumulative-chart-description"></canvas>
+          <p class="visually-hidden" id="cumulative-chart-description">Running estimated cost and total tokens by date.</p>
+          <p class="chart-fallback" id="cumulative-fallback" hidden>Cumulative chart unavailable.</p>
+        </div>
+        <details class="chart-data-disclosure">
+          <summary>View data</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Cumulative chart data">
+            <table>
+              <caption class="visually-hidden">Cumulative estimated cost and total tokens by date</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Cumulative estimated cost</th>
+                  <th scope="col">Cumulative total tokens</th>
+                </tr>
+              </thead>
+              <tbody id="cumulative-data-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
+    <div class="drop-overlay-inner">
+      <div>
+        <strong>Drop JSON to load</strong>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <p class="notice">JavaScript is required to view this dashboard.</p>
+  </noscript>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="data/latest.js"></script>
+  <script src="dashboard-core.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
