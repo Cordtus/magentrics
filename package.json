@@ -1,0 +1,14 @@
+{
+  "name": "codex-usage-dashboard",
+  "private": true,
+  "scripts": {
+    "usage:export": "ccusage codex daily --json",
+    "refresh": "node scripts/refresh-data.mjs",
+    "data:generate": "node scripts/generate-data.mjs",
+    "share:build": "node scripts/build-share.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "ccusage": "^20.0.18"
+  }
+}

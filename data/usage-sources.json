@@ -1,0 +1,10 @@
+{
+  "personalUserId": "myself",
+  "users": [
+    {
+      "id": "myself",
+      "name": "Myself",
+      "file": "raw/myself-initial.json"
+    }
+  ]
+}
