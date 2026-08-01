@@ -1,0 +1,6 @@
+node_modules/
+dist/
+data/raw/
+data/snapshots/
+codex-usage*.json
+usage-data.js
