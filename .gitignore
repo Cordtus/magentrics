@@ -1,6 +1,13 @@
 node_modules/
 dist/
+.claude/
+.serena/
+.superpowers/
 data/raw/
 data/snapshots/
+data/latest.json
+data/latest.js
 codex-usage*.json
 usage-data.js
+/usage-sources.json
+/marius.json
