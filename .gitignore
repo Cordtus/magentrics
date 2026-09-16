@@ -7,7 +7,11 @@ data/raw/
 data/snapshots/
 data/latest.json
 data/latest.js
+data/latest-data.json
+data/opencode-cache.json
+aiusage.json
 codex-usage*.json
 usage-data.js
 /usage-sources.json
 /marius.json
+.vercel

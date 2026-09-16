@@ -88,6 +88,10 @@ test("refresh publishes a personal raw export and selects its transformed snapsh
     await readFile(result.latestPath, "utf8"),
     /usage-20260801T020000Z\.js/,
   );
+  assert.deepEqual(
+    JSON.parse(await readFile(result.latestDataPath, "utf8")),
+    { users: [{ id: "myself", name: "Myself", data: raw }] },
+  );
   assert.equal(
     JSON.parse(await readFile(path.join(projectRoot, "data", "usage-sources.json"), "utf8"))
       .users[0].file,
@@ -212,4 +216,55 @@ test("the latest browser loader selects the published transformed snapshot", asy
     JSON.parse(JSON.stringify(context.window.CODEX_USAGE_DATA.users[0].data)),
     validExport(),
   );
+});
+
+test("ccusageArgs builds daily exports for codex and claude only", async () => {
+  const { ccusageArgs } = await import(refreshUrl);
+  assert.deepEqual(ccusageArgs("codex"), ["codex", "daily", "--json"]);
+  assert.deepEqual(ccusageArgs("claude"), ["claude", "daily", "--json"]);
+  assert.throws(() => ccusageArgs("opencode"), /Unsupported ccusage provider/);
+});
+
+test("refresh rejects an unsupported provider before touching the manifest", async () => {
+  const { refresh } = await import(refreshUrl);
+  await assert.rejects(refresh({ provider: "gemini" }), /Unsupported ccusage provider/);
+});
+
+test("refresh.mjs parseArgs takes the provider as the first argument", async () => {
+  const { parseArgs } = await import(pathToFileURL(
+    path.resolve(__dirname, "../scripts/refresh.mjs"),
+  ).href);
+
+  assert.equal(parseArgs(["codex"]).provider, "codex");
+  assert.equal(parseArgs(["claude"]).provider, "claude");
+  assert.equal(parseArgs(["opencode"]).provider, "opencode");
+  assert.deepEqual(parseArgs(["opencode", "--cache", "x.json"]).cache, "x.json");
+  assert.throws(() => parseArgs(["codex", "claude"]), /Choose only one provider/);
+  assert.throws(() => parseArgs(["gemini"]), /Unknown provider/);
+});
+
+test("refresh.mjs requires a provider and explains the choices", async () => {
+  const { parseArgs } = await import(pathToFileURL(
+    path.resolve(__dirname, "../scripts/refresh.mjs"),
+  ).href);
+
+  assert.throws(() => parseArgs([]), /No provider specified\. Choose one of: codex, claude, opencode/);
+  assert.throws(() => parseArgs([]), /bun run refresh codex/);
+  assert.throws(() => parseArgs(["--serve"]), /No provider specified/);
+  assert.throws(() => parseArgs(["--watch"]), /No provider specified/);
+});
+
+test("refresh.mjs parseArgs takes --serve and --watch modes", async () => {
+  const { parseArgs } = await import(pathToFileURL(
+    path.resolve(__dirname, "../scripts/refresh.mjs"),
+  ).href);
+
+  assert.deepEqual(parseArgs(["codex", "--serve"]), { provider: "codex", serve: true, watch: false });
+  assert.equal(parseArgs(["codex", "--watch"]).watch, true);
+  assert.deepEqual(
+    parseArgs(["opencode", "--serve", "--watch", "--interval", "5", "--port", "9000"]),
+    { provider: "opencode", serve: true, watch: true, interval: 5, port: 9000 },
+  );
+  assert.throws(() => parseArgs(["--interval", "0"]), /--interval must be/);
+  assert.throws(() => parseArgs(["--port", "70000"]), /--port must be/);
 });

@@ -2,11 +2,14 @@
   "name": "codex-usage-dashboard",
   "private": true,
   "scripts": {
-    "refresh": "node scripts/refresh-data.mjs",
+    "start": "node serve.mjs",
+    "start:opencode": "opencode serve",
+    "refresh": "node scripts/refresh.mjs",
+    "fetch:opencode": "node scripts/fetch-opencode.mjs",
     "share:build": "node scripts/build-share.mjs",
     "test": "node --test tests/*.test.js"
   },
   "devDependencies": {
-    "ccusage": "^20.0.18"
+    "ccusage": "^20.0.20"
   }
 }

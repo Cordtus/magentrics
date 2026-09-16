@@ -55,8 +55,15 @@ async function nextAvailablePath(directory, filename, fileOperations) {
   }
 }
 
-async function runDefaultExporter() {
-  const result = await execFileAsync("ccusage", ["codex", "daily", "--json"], {
+export function ccusageArgs(provider) {
+  if (provider !== "codex" && provider !== "claude") {
+    throw new Error(`Unsupported ccusage provider: ${provider}`);
+  }
+  return [provider, "daily", "--json"];
+}
+
+async function runDefaultExporter(provider) {
+  const result = await execFileAsync("ccusage", ccusageArgs(provider), {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -124,9 +131,14 @@ export async function refresh(options = {}) {
   const rawDirectory = path.join(dataRoot, "raw");
   const snapshotDirectory = path.join(dataRoot, "snapshots");
   const latestJsonPath = path.join(dataRoot, "latest.json");
+  const latestDataPath = path.join(dataRoot, "latest-data.json");
   const latestLoaderPath = path.join(dataRoot, "latest.js");
   const fileOperations = withFileOperations(options.fileOperations);
-  const runExporter = options.runExporter || runDefaultExporter;
+  const provider = options.provider || "codex";
+  if (provider !== "codex" && provider !== "claude") {
+    throw new Error(`Unsupported ccusage provider: ${provider}`);
+  }
+  const runExporter = options.runExporter || (() => runDefaultExporter(provider));
   const now = options.now ? options.now() : new Date();
   const timestamp = formatTimestamp(now);
   const manifest = await readManifest(manifestPath, fileOperations);
@@ -179,6 +191,7 @@ export async function refresh(options = {}) {
     generatedAt: now.toISOString(),
     snapshot: `snapshots/${path.basename(snapshotPath)}`,
   };
+  await publishJson(latestDataPath, snapshotData, fileOperations);
   await publishJson(latestJsonPath, latest, fileOperations);
   await writeAtomically(
     latestLoaderPath,
@@ -187,10 +200,54 @@ export async function refresh(options = {}) {
   );
 
   return {
+    latestDataPath,
     latestPath: latestJsonPath,
     manifestPath,
     rawPath,
     snapshotPath,
+  };
+}
+
+export async function publishSnapshot(sources, options = {}) {
+  const projectRoot = path.resolve(options.projectRoot || defaultProjectRoot);
+  const dataRoot = path.resolve(options.dataRoot || path.join(projectRoot, "data"));
+  const snapshotDirectory = path.join(dataRoot, "snapshots");
+  const latestJsonPath = path.join(dataRoot, "latest.json");
+  const latestDataPath = path.join(dataRoot, "latest-data.json");
+  const latestLoaderPath = path.join(dataRoot, "latest.js");
+  const fileOperations = withFileOperations(options.fileOperations);
+  const now = options.now ? options.now() : new Date();
+  const timestamp = formatTimestamp(now);
+
+  if (!Array.isArray(sources) || sources.length === 0) {
+    throw new Error("sources must be a non-empty array");
+  }
+  dashboardCore.buildMultiUserDashboardData(sources);
+  const snapshotData = {
+    users: sources.map(({ id, name, raw }) => ({ id, name, data: raw })),
+  };
+
+  await fileOperations.mkdir(snapshotDirectory, { recursive: true });
+  const snapshotFilename = `usage-${timestamp}.js`;
+  const snapshotPath = await nextAvailablePath(snapshotDirectory, snapshotFilename, fileOperations);
+  await writeAtomically(snapshotPath, serializeSnapshot(snapshotData), fileOperations);
+
+  await publishJson(latestJsonPath, {
+    generatedAt: now.toISOString(),
+    snapshot: `snapshots/${path.basename(snapshotPath)}`,
+  }, fileOperations);
+  await publishJson(latestDataPath, snapshotData, fileOperations);
+  await writeAtomically(
+    latestLoaderPath,
+    makeLatestLoader(path.basename(snapshotPath)),
+    fileOperations,
+  );
+
+  return {
+    latestDataPath,
+    latestPath: latestJsonPath,
+    snapshotPath,
+    timestamp,
   };
 }
 
