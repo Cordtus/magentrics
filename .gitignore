@@ -3,6 +3,9 @@ dist/
 .claude/
 .serena/
 .superpowers/
+.playwright-mcp/
+AGENTS.md
+docs/
 data/raw/
 data/snapshots/
 data/latest.json
