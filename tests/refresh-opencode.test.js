@@ -1,18 +1,18 @@
-"use strict";
+import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import * as dashboardCore from "../dashboard-core.js";
 
-const assert = require("node:assert/strict");
-const { EventEmitter } = require("node:events");
-const { mkdtemp, readFile, rm } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
-
-const dashboardCore = require("../dashboard-core.js");
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publisherUrl = pathToFileURL(
-  path.resolve(__dirname, "../scripts/refresh-opencode.mjs"),
+  path.resolve(__dirname, "../scripts/refresh-opencode.js"),
 ).href;
+
 
 const utcDayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
 
@@ -212,4 +212,22 @@ test("withOpenCodeServer refuses to start a server for a remote address", async 
     /Cannot reach the opencode server/,
   );
   assert.equal(spawned, 0);
+});
+
+test("skipUnchanged does not republish identical opencode usage", async (t) => {
+  const projectRoot = await makeProject(t);
+  const { refreshOpenCodeUsage } = await import(publisherUrl);
+  const options = {
+    projectRoot,
+    fetchImpl: fakeFetch(routesForAgents()),
+    dayKey: utcDayKey,
+    skipUnchanged: true,
+  };
+
+  const first = await refreshOpenCodeUsage({ ...options, now: () => new Date("2026-08-06T12:00:00.000Z") });
+  assert.equal(first.unchanged, false);
+  const second = await refreshOpenCodeUsage({ ...options, now: () => new Date("2026-08-06T13:00:00.000Z") });
+
+  assert.equal(second.unchanged, true);
+  assert.equal(second.snapshotPath, undefined);
 });

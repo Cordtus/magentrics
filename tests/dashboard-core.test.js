@@ -1,10 +1,8 @@
 'use strict';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-
-const { buildDashboardData, buildMultiUserDashboardData } = require('../dashboard-core.js');
-
+import test from "node:test";
+import assert from "node:assert/strict";
+import { buildDashboardData, buildMultiUserDashboardData } from "../dashboard-core.js";
 function canonicalExport() {
 	return {
 		daily: [

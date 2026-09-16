@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import dashboardCore from "../dashboard-core.js";
-import { writeAtomically } from "./generate-data.mjs";
+import * as dashboardCore from "../dashboard-core.js";
+import { writeAtomically } from "./generate-data.js";
 
 export const DEFAULT_BASE_URL = "http://127.0.0.1:4096";
 const REQUEST_TIMEOUT_MS = 30_000;
 
-const USAGE = `Usage: node scripts/fetch-opencode.mjs [options]
+const USAGE = `Usage: node scripts/fetch-opencode.js [options]
 
 Fetches assistant message usage from the opencode server API and emits the
 ccusage daily export shape ({ "daily": [...], "totals": {...} }) on stdout.

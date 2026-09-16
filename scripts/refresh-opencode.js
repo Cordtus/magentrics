@@ -5,15 +5,15 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_BASE_URL, fetchOpenCodeUsage } from "./fetch-opencode.mjs";
-import { publishSnapshot } from "./refresh-data.mjs";
-import { writeAtomically } from "./generate-data.mjs";
+import { DEFAULT_BASE_URL, fetchOpenCodeUsage } from "./fetch-opencode.js";
+import { publishSnapshot } from "./refresh-data.js";
+import { writeAtomically } from "./generate-data.js";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const defaultProjectRoot = path.resolve(scriptDirectory, "..");
 const DEFAULT_CACHE_FILENAME = "opencode-cache.json";
 
-const USAGE = `Usage: node scripts/refresh-opencode.mjs [options]
+const USAGE = `Usage: node scripts/refresh-opencode.js [options]
 
 Collects assistant usage from the opencode server (incrementally, reusing
 unchanged sessions from the cache) and publishes a dashboard snapshot with one
@@ -71,13 +71,13 @@ async function serverResponds(baseUrl, fetchImpl) {
   }
 }
 
-export async function withOpenCodeServer(options, action) {
+export async function ensureOpenCodeServer(options = {}) {
   const baseUrl = (options.baseUrl || process.env.OPENCODE_BASE_URL || DEFAULT_BASE_URL)
     .replace(/\/+$/, "");
   const fetchImpl = options.fetchImpl || fetch;
 
   if (await serverResponds(baseUrl, fetchImpl)) {
-    return { baseUrl, started: false, value: await action(baseUrl) };
+    return { baseUrl, started: false, stop: async () => {} };
   }
   if (options.startServer === false || !isLoopback(baseUrl)) {
     throw new Error(`Cannot reach the opencode server at ${baseUrl}; start it with "opencode serve"`);
@@ -111,9 +111,19 @@ export async function withOpenCodeServer(options, action) {
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
-    return { baseUrl, started: true, value: await action(baseUrl) };
-  } finally {
+    return { baseUrl, started: true, stop };
+  } catch (error) {
     await stop();
+    throw error;
+  }
+}
+
+export async function withOpenCodeServer(options, action) {
+  const server = await ensureOpenCodeServer(options);
+  try {
+    return { baseUrl: server.baseUrl, started: server.started, value: await action(server.baseUrl) };
+  } finally {
+    await server.stop();
   }
 }
 
@@ -185,15 +195,7 @@ export async function refreshOpenCodeUsage(options = {}) {
   }
 
   const sources = agentSources(result.agents, result.usage);
-  const published = await publishSnapshot(sources, {
-    projectRoot,
-    dataRoot,
-    fileOperations: options.fileOperations,
-    now: options.now,
-  });
-
-  return {
-    ...published,
+  const stats = {
     agents: sources.map(({ id, name }) => ({ id, name })),
     cachePath,
     fetchedSessions: result.fetchedSessions,
@@ -201,26 +203,65 @@ export async function refreshOpenCodeUsage(options = {}) {
     reusedSessions: result.reusedSessions,
     sessions: result.sessions,
   };
+
+  if (options.skipUnchanged) {
+    const snapshotData = { users: sources.map(({ id, name, raw }) => ({ id, name, data: raw })) };
+    try {
+      const previous = await fileOperations.readFile(path.join(dataRoot, "latest-data.json"), "utf8");
+      if (previous === `${JSON.stringify(snapshotData, null, 2)}\n`) {
+        return { ...stats, unchanged: true };
+      }
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+    }
+  }
+
+  const published = await publishSnapshot(sources, {
+    projectRoot,
+    dataRoot,
+    fileOperations: options.fileOperations,
+    now: options.now,
+  });
+
+  return { ...published, ...stats, unchanged: false };
+}
+
+function progressReporter() {
+  let reported = 0;
+  return ({ done, total, fetchedSessions }) => {
+    if (fetchedSessions - reported < 25) return;
+    reported = fetchedSessions;
+    process.stderr.write(`Scanned ${done}/${total} sessions (${fetchedSessions} fetched)...\n`);
+  };
 }
 
 export async function runOpenCodeRefresh(options = {}) {
-  let reported = 0;
-  const { started, value: result } = await withOpenCodeServer(options, (baseUrl) =>
-    refreshOpenCodeUsage({
-      ...options,
-      baseUrl,
-      onProgress: options.onProgress || (({ done, total, fetchedSessions }) => {
-        if (fetchedSessions - reported < 25) return;
-        reported = fetchedSessions;
-        process.stderr.write(`Scanned ${done}/${total} sessions (${fetchedSessions} fetched)...\n`);
-      }),
-    }));
-  const messageWord = result.messages === 1 ? "message" : "messages";
-  const reusedNote = result.reusedSessions > 0 ? `, ${result.reusedSessions} unchanged` : "";
-  console.log(`Aggregated ${result.messages} ${messageWord} from ${result.sessions} sessions${reusedNote}`);
-  console.log(`Agents: ${result.agents.map((agent) => agent.name).join(", ") || "none"}`);
-  console.log(`Published dashboard snapshot: ${result.snapshotPath}`);
-  if (started) console.log("Used a temporary opencode server (started and stopped by this run).");
+  const run = (baseUrl) => refreshOpenCodeUsage({
+    ...options,
+    baseUrl,
+    onProgress: options.onProgress || (options.quiet ? undefined : progressReporter()),
+  });
+
+  let started = false;
+  let result;
+  if (options.server) {
+    result = await run(options.server.baseUrl);
+  } else {
+    const outcome = await withOpenCodeServer(options, run);
+    started = outcome.started;
+    result = outcome.value;
+  }
+
+  if (!options.quiet) {
+    const messageWord = result.messages === 1 ? "message" : "messages";
+    const reusedNote = result.reusedSessions > 0 ? `, ${result.reusedSessions} unchanged` : "";
+    console.log(`Aggregated ${result.messages} ${messageWord} from ${result.sessions} sessions${reusedNote}`);
+    console.log(`Agents: ${result.agents.map((agent) => agent.name).join(", ") || "none"}`);
+    console.log(result.unchanged
+      ? "No changes since the last snapshot."
+      : `Published dashboard snapshot: ${result.snapshotPath}`);
+    if (started) console.log("Used a temporary opencode server (started and stopped by this run).");
+  }
   return { ...result, started };
 }
 

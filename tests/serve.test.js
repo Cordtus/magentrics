@@ -1,14 +1,15 @@
-"use strict";
+import assert from "node:assert/strict";
+import http from "node:http";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
-const assert = require("node:assert/strict");
-const http = require("node:http");
-const { mkdir, mkdtemp, rm, writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const serverUrl = pathToFileURL(path.resolve(__dirname, "../serve.js")).href;
 
-const serverUrl = pathToFileURL(path.resolve(__dirname, "../serve.mjs")).href;
 
 function request(port, requestPath, method = "GET") {
   return new Promise((resolve, reject) => {

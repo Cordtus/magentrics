@@ -25,7 +25,7 @@ const RUNTIME_FILES = [
   "dashboard.js",
   "dashboard-core.js",
   "usage-data.js",
-  "serve.mjs",
+  "serve.js",
 ];
 const VENDOR_FILES = [
   "chart.umd.min.js",
@@ -39,23 +39,17 @@ This folder is a self-contained, offline usage dashboard.
 
 ## Open it
 
-Open \`index.html\` in a browser. It immediately shows the packaged usage snapshot.
-
-On macOS, unpack and open it with one command:
-
-\`\`\`bash
-unzip -q codex-usage-dashboard.zip && open codex-usage-dashboard/index.html
-\`\`\`
-
-The package is already built; no dependency installation or build command is required.
-
-If your browser restricts local \`file://\` pages, run:
+The dashboard is built from ES modules, so it must be served over http
+(browsers block modules on \`file://\`). Unpack it and start the included server:
 
 \`\`\`bash
-node serve.mjs
+unzip -q codex-usage-dashboard.zip
+cd codex-usage-dashboard
+node serve.js
 \`\`\`
 
-Then open the loopback URL printed in the terminal. No install step is required.
+Then open the loopback URL it prints (default \`http://127.0.0.1:8765/\`). Node.js
+must be installed; there is no dependency installation or build step.
 
 ## Load another JSON export
 
@@ -228,7 +222,22 @@ export async function buildSharePackage(options = {}) {
   }
 }
 
+const USAGE = `Usage: node scripts/build-share.js
+
+Builds dist/codex-usage-dashboard/ and a ZIP from the snapshot that
+data/latest.json points to. Requires the system "zip" binary.
+
+Run "bun run refresh <codex|claude|opencode>" first to produce a snapshot.
+`;
+
 async function main() {
+  if (process.argv.slice(2).some((arg) => arg === "--help" || arg === "-h")) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  if (process.argv.length > 2) {
+    throw new Error(`Unknown argument: ${process.argv.slice(2).join(" ")}\n\n${USAGE}`);
+  }
   const result = await buildSharePackage();
   console.log(`Folder: ${result.packageDir}`);
   console.log(`ZIP: ${result.zipPath}`);

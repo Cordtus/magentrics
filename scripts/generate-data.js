@@ -5,7 +5,7 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promis
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import dashboardCore from "../dashboard-core.js";
+import * as dashboardCore from "../dashboard-core.js";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -162,13 +162,25 @@ async function generateSnapshot(inputPath, outputPath, operationOverrides = {}) 
   await writeAtomically(outputPath, serializeSnapshot(snapshot.data), fileOperations);
 }
 
+const USAGE = `Usage: node scripts/generate-data.js [input-json] [output-script]
+
+Validates a usage export (or a manifest of named sources) and writes a
+browser-loadable snapshot script atomically. Defaults to the gitignored
+root files usage-sources.json -> usage-data.js.
+
+This is the legacy standalone path; the supported refresh flow is
+"bun run refresh <codex|claude|opencode>".
+`;
+
 async function main() {
   const args = process.argv.slice(2);
 
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(USAGE);
+    return;
+  }
   if (args.length > 2) {
-    throw new Error(
-      "Usage: node scripts/generate-data.mjs [input-json] [output-script]",
-    );
+    throw new Error(`Too many arguments.\n\n${USAGE}`);
   }
 
   const inputPath = args[0]

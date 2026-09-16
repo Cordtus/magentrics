@@ -1,15 +1,16 @@
-"use strict";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { link, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const { link, mkdtemp, readdir, readFile, rm, writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
-const vm = require("node:vm");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const generatorPath = path.resolve(__dirname, "../scripts/generate-data.js");
 
-const generatorPath = path.resolve(__dirname, "../scripts/generate-data.mjs");
 
 function validExport() {
   return {

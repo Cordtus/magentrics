@@ -3,15 +3,15 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { startStaticServer } from "../serve.mjs";
-import { refresh } from "./refresh-data.mjs";
-import { runOpenCodeRefresh } from "./refresh-opencode.mjs";
+import { startStaticServer } from "../serve.js";
+import { refresh } from "./refresh-data.js";
+import { ensureOpenCodeServer, runOpenCodeRefresh } from "./refresh-opencode.js";
 
 const PROVIDERS = ["codex", "claude", "opencode"];
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_PORT = 8765;
 
-const USAGE = `Usage: node scripts/refresh.mjs [provider] [mode] [options]
+const USAGE = `Usage: node scripts/refresh.js [provider] [mode] [options]
 
 Refreshes the local usage snapshot. The provider is required as the first
 argument:
@@ -103,53 +103,84 @@ export function parseArgs(args) {
   return options;
 }
 
+function clock() {
+  return new Date().toTimeString().slice(0, 8);
+}
+
+function summarize(options, result) {
+  if (result.unchanged) return "no changes";
+  const snapshot = path.basename(result.snapshotPath);
+  if (options.provider !== "opencode") return `published ${snapshot}`;
+  const changed = result.fetchedSessions === 1 ? "1 session changed" : `${result.fetchedSessions} sessions changed`;
+  return `published ${snapshot} (${result.messages} messages, ${changed})`;
+}
+
 async function refreshOnce(options) {
-  if (options.provider === "opencode") {
-    await runOpenCodeRefresh(options);
-    return;
+  if (options.provider === "opencode") return runOpenCodeRefresh(options);
+  const result = await refresh({ provider: options.provider, skipUnchanged: options.skipUnchanged });
+  if (!options.quiet) {
+    console.log(result.unchanged
+      ? `No changes to the ${options.provider} export.`
+      : `Refreshed ${options.provider} raw export: ${result.rawPath}`);
+    if (!result.unchanged) console.log(`Published dashboard snapshot: ${result.snapshotPath}`);
   }
-  const result = await refresh({ provider: options.provider });
-  console.log(`Refreshed ${options.provider} raw export: ${result.rawPath}`);
-  console.log(`Published dashboard snapshot: ${result.snapshotPath}`);
+  return result;
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  await refreshOnce(options);
+  const looping = Boolean(options.watch || options.serve);
 
-  if (!options.watch && !options.serve) return;
+  let openCodeServer = null;
+  if (options.provider === "opencode" && looping) {
+    openCodeServer = await ensureOpenCodeServer(options);
+    if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
+  }
+
+  const runOnce = () => refreshOnce({
+    ...options,
+    server: openCodeServer,
+    quiet: looping,
+    skipUnchanged: looping,
+  });
+
+  const first = await runOnce();
+  if (!looping) return;
+  console.log(`[${clock()}] ${summarize(options, first)}`);
 
   let server = null;
   if (options.serve) {
     ({ server } = await startStaticServer({ port: options.port }));
     const { port } = server.address();
-    console.log(`AI Usage: http://127.0.0.1:${port}/`);
+    console.log(`AI Usage: http://127.0.0.1:${port}${options.watch ? "/?live=1" : "/"}`);
   }
 
   let refreshTimer = null;
+  let busy = false;
   const shutdown = () => {
     if (refreshTimer) clearInterval(refreshTimer);
     if (server) server.close();
+    if (openCodeServer) openCodeServer.stop();
     process.exitCode = 0;
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
   if (options.watch) {
-    const intervalMs = (options.interval || DEFAULT_INTERVAL_SECONDS) * 1000;
-    console.log(`Refreshing every ${intervalMs / 1000}s; press Ctrl-C to stop.`);
-    let busy = false;
+    const intervalSeconds = options.interval || DEFAULT_INTERVAL_SECONDS;
+    console.log(`Refreshing every ${intervalSeconds}s; press Ctrl-C to stop.`);
     refreshTimer = setInterval(async () => {
       if (busy) return;
       busy = true;
       try {
-        await refreshOnce(options);
+        const result = await runOnce();
+        console.log(`[${clock()}] ${summarize(options, result)}`);
       } catch (error) {
-        console.error(`Refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`[${clock()}] refresh failed: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         busy = false;
       }
-    }, intervalMs);
+    }, intervalSeconds * 1000);
   }
 }
 

@@ -1,16 +1,17 @@
-"use strict";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
-const assert = require("node:assert/strict");
-const { mkdir, mkdtemp, readFile, rm, writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
-const vm = require("node:vm");
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const refreshUrl = pathToFileURL(
-  path.resolve(__dirname, "../scripts/refresh-data.mjs"),
+  path.resolve(__dirname, "../scripts/refresh-data.js"),
 ).href;
+
 
 function validExport(date = "2026-07-31") {
   return {
@@ -230,9 +231,9 @@ test("refresh rejects an unsupported provider before touching the manifest", asy
   await assert.rejects(refresh({ provider: "gemini" }), /Unsupported ccusage provider/);
 });
 
-test("refresh.mjs parseArgs takes the provider as the first argument", async () => {
+test("refresh.js parseArgs takes the provider as the first argument", async () => {
   const { parseArgs } = await import(pathToFileURL(
-    path.resolve(__dirname, "../scripts/refresh.mjs"),
+    path.resolve(__dirname, "../scripts/refresh.js"),
   ).href);
 
   assert.equal(parseArgs(["codex"]).provider, "codex");
@@ -243,9 +244,9 @@ test("refresh.mjs parseArgs takes the provider as the first argument", async () 
   assert.throws(() => parseArgs(["gemini"]), /Unknown provider/);
 });
 
-test("refresh.mjs requires a provider and explains the choices", async () => {
+test("refresh.js requires a provider and explains the choices", async () => {
   const { parseArgs } = await import(pathToFileURL(
-    path.resolve(__dirname, "../scripts/refresh.mjs"),
+    path.resolve(__dirname, "../scripts/refresh.js"),
   ).href);
 
   assert.throws(() => parseArgs([]), /No provider specified\. Choose one of: codex, claude, opencode/);
@@ -254,9 +255,9 @@ test("refresh.mjs requires a provider and explains the choices", async () => {
   assert.throws(() => parseArgs(["--watch"]), /No provider specified/);
 });
 
-test("refresh.mjs parseArgs takes --serve and --watch modes", async () => {
+test("refresh.js parseArgs takes --serve and --watch modes", async () => {
   const { parseArgs } = await import(pathToFileURL(
-    path.resolve(__dirname, "../scripts/refresh.mjs"),
+    path.resolve(__dirname, "../scripts/refresh.js"),
   ).href);
 
   assert.deepEqual(parseArgs(["codex", "--serve"]), { provider: "codex", serve: true, watch: false });
@@ -267,4 +268,22 @@ test("refresh.mjs parseArgs takes --serve and --watch modes", async () => {
   );
   assert.throws(() => parseArgs(["--interval", "0"]), /--interval must be/);
   assert.throws(() => parseArgs(["--port", "70000"]), /--port must be/);
+});
+
+test("skipUnchanged leaves the last snapshot in place when the export is identical", async (t) => {
+  const projectRoot = await makeProject(t);
+  const { refresh } = await import(refreshUrl);
+  const options = {
+    projectRoot,
+    manifestPath: path.join(projectRoot, "data", "usage-sources.json"),
+    runExporter: async () => JSON.stringify(validExport()),
+  };
+
+  const first = await refresh({ ...options, skipUnchanged: true, now: () => new Date("2026-08-01T02:00:00.000Z") });
+  assert.equal(first.unchanged, false);
+  const second = await refresh({ ...options, skipUnchanged: true, now: () => new Date("2026-08-01T03:00:00.000Z") });
+
+  assert.equal(second.unchanged, true);
+  assert.equal(second.snapshotPath, null);
+  assert.match(await readFile(path.join(projectRoot, "data", "latest.json"), "utf8"), /usage-20260801T020000Z\.js/);
 });

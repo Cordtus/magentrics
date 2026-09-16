@@ -1,20 +1,21 @@
-"use strict";
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
-const assert = require("node:assert/strict");
-const { execFile } = require("node:child_process");
-const { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { promisify } = require("node:util");
-const { pathToFileURL } = require("node:url");
-const vm = require("node:vm");
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(__dirname, "..");
 const builderUrl = pathToFileURL(
-  path.join(repositoryRoot, "scripts/build-share.mjs"),
+  path.join(repositoryRoot, "scripts/build-share.js"),
 ).href;
+
 
 function validExport() {
   return {
@@ -58,7 +59,7 @@ async function makeFixture(t) {
   const distRoot = path.join(directory, "dist");
   await mkdir(path.join(projectRoot, "vendor"), { recursive: true });
 
-  for (const filename of ["index.html", "dashboard.js", "dashboard-core.js", "serve.mjs"]) {
+  for (const filename of ["index.html", "dashboard.js", "dashboard-core.js", "serve.js"]) {
     await copyFile(path.join(repositoryRoot, filename), path.join(projectRoot, filename));
   }
   for (const filename of [
@@ -123,7 +124,7 @@ test("builds the exact offline folder and ZIP with a faithful bundled snapshot",
     "codex-usage-dashboard/dashboard-core.js",
     "codex-usage-dashboard/dashboard.js",
     "codex-usage-dashboard/index.html",
-    "codex-usage-dashboard/serve.mjs",
+    "codex-usage-dashboard/serve.js",
     "codex-usage-dashboard/usage-data.js",
     "codex-usage-dashboard/vendor/",
     "codex-usage-dashboard/vendor/THIRD_PARTY_LICENSES.md",

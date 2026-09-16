@@ -1,17 +1,18 @@
-"use strict";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import http from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import * as dashboardCore from "../dashboard-core.js";
 
-const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
-const { mkdtemp, readFile, rm, writeFile } = require("node:fs/promises");
-const http = require("node:http");
-const { tmpdir } = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
-
-const dashboardCore = require("../dashboard-core.js");
-const fetcherPath = path.resolve(__dirname, "../scripts/fetch-opencode.mjs");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const fetcherPath = path.resolve(__dirname, "../scripts/fetch-opencode.js");
 const fetcherUrl = pathToFileURL(fetcherPath).href;
+
 
 function runFetcher(args) {
   return new Promise((resolve, reject) => {

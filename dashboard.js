@@ -1,6 +1,6 @@
-(function () {
-  "use strict";
+import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-core.js";
 
+(function () {
   const COLORS = {
     accent: "#55e3c3",
     blue: "#82aaff",
@@ -962,7 +962,7 @@
   function activateRaw(raw, source, focusOnError) {
     try {
       if (isMultiUserBundle(raw)) {
-        state.bundle = window.CodexUsageCore.buildMultiUserDashboardData(
+        state.bundle = buildMultiUserDashboardData(
           raw.users.map((user) => ({
             id: user.id,
             name: user.name,
@@ -975,7 +975,7 @@
       } else {
         state.bundle = null;
         state.detailId = "selected";
-        state.model = window.CodexUsageCore.buildDashboardData(raw);
+        state.model = buildDashboardData(raw);
         state.source = source;
         configureDetailSelector(null);
         renderDashboard(state.model, source, source.kind === "generated" ? "Loaded export" : source.name);
@@ -1147,7 +1147,7 @@
     if (window.location.protocol === "file:") {
       showError(
         "Live mode needs a server",
-        "Open this dashboard through node serve.mjs to use ?live=1.",
+        "This dashboard must be served over http for live mode; run node serve.js.",
         false,
       );
       return;
@@ -1183,19 +1183,6 @@
     setupFileLoading();
     setupLiveReload();
     elements.dismissError.addEventListener("click", clearError);
-
-    if (!window.CodexUsageCore
-      || typeof window.CodexUsageCore.buildDashboardData !== "function"
-      || typeof window.CodexUsageCore.buildMultiUserDashboardData !== "function") {
-      elements.sourceLabel.textContent = "No usage data";
-      showError(
-        "Dashboard files are incomplete",
-        "dashboard-core.js is missing, so data cannot be loaded.",
-        false,
-      );
-      elements.body.classList.add("is-ready");
-      return;
-    }
 
     elements.sourceLabel.textContent = "No data loaded";
 

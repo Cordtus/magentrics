@@ -13,8 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import dashboardCore from "../dashboard-core.js";
-import { serializeSnapshot, writeAtomically } from "./generate-data.mjs";
+import * as dashboardCore from "../dashboard-core.js";
+import { serializeSnapshot, writeAtomically } from "./generate-data.js";
 
 const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -156,6 +156,17 @@ export async function refresh(options = {}) {
     throw new Error(`ccusage export is invalid: ${error.message}`);
   }
 
+  if (options.skipUnchanged) {
+    try {
+      const previousRaw = await fileOperations.readFile(path.resolve(dataRoot, personal.file), "utf8");
+      if (previousRaw === `${JSON.stringify(personalRaw, null, 2)}\n`) {
+        return { manifestPath, snapshotPath: null, unchanged: true };
+      }
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+    }
+  }
+
   await fileOperations.mkdir(rawDirectory, { recursive: true });
   await fileOperations.mkdir(snapshotDirectory, { recursive: true });
   const rawFilename = `${personal.id}-${timestamp}.json`;
@@ -205,6 +216,7 @@ export async function refresh(options = {}) {
     manifestPath,
     rawPath,
     snapshotPath,
+    unchanged: false,
   };
 }
 
@@ -251,9 +263,29 @@ export async function publishSnapshot(sources, options = {}) {
   };
 }
 
+const USAGE = `Usage: node scripts/refresh-data.js [codex|claude]
+
+Fetches the personal usage export, archives it under data/raw/, publishes a
+browser snapshot under data/snapshots/, and advances the data/latest.* pointers
+atomically. Previous raw exports and snapshots are never overwritten.
+
+Prefer "bun run refresh <provider> [--watch] [--serve]", which runs this with
+the pinned ccusage binary on PATH. Running this file directly needs ccusage
+installed (otherwise "ccusage" is reported as not found).
+`;
+
 async function main() {
-  const result = await refresh();
-  console.log(`Refreshed raw export: ${result.rawPath}`);
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  const provider = args[0];
+  if (args.length > 1 || (provider !== undefined && provider !== "codex" && provider !== "claude")) {
+    throw new Error(`Unknown argument: ${args.join(" ")}\n\n${USAGE}`);
+  }
+  const result = await refresh({ provider });
+  console.log(`Refreshed ${provider || "codex"} raw export: ${result.rawPath}`);
   console.log(`Published dashboard snapshot: ${result.snapshotPath}`);
 }
 

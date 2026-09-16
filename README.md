@@ -10,7 +10,7 @@ A local, offline dashboard for CLI coding-assistant usage (Claude, Codex, OpenCo
 
 ## How it works
 
-The dashboard is plain HTML/CSS/JS with no build step. It reads a usage JSON export client-side, so it needs no server and uploads nothing.
+The dashboard is plain HTML/CSS/JS with no build step. It reads a usage JSON export client-side and uploads nothing. Because it uses ES modules, the browser blocks it on `file://`, so serve the folder with the included dependency-free server and open the printed URL.
 
 Data stays local under `data/`:
 
@@ -43,7 +43,7 @@ bun run refresh opencode --serve           # http://127.0.0.1:8765/
 bun run refresh opencode --watch --serve   # live: http://127.0.0.1:8765/?live=1
 ```
 
-`--watch` refreshes every `--interval <seconds>` (default 60). `--serve` uses `--port <n>` (default 8765). You can also open `index.html` directly (without live mode), or serve existing data without refreshing with `node serve.mjs`.
+`--watch` refreshes every `--interval <seconds>` (default 60); a cycle that finds no new usage prints `no changes` and does not publish. `--serve` uses `--port <n>` (default 8765). To view already-refreshed data without refreshing, run `node serve.js`.
 
 The `opencode` provider starts a temporary server when none is running and stops it afterwards; an already-running server is left alone. Pass `--base-url <url>`, `--directory <path>`, or `--cache <path>` to override its defaults.
 
@@ -74,7 +74,7 @@ Description=Refresh the local opencode usage snapshot
 [Service]
 Type=oneshot
 WorkingDirectory=/absolute/path/to/this/checkout
-ExecStart=/absolute/path/to/node scripts/refresh.mjs opencode
+ExecStart=/absolute/path/to/node scripts/refresh.js opencode
 ```
 
 and `~/.config/systemd/user/opencode-usage.timer`:
@@ -108,7 +108,7 @@ Fill in the absolute `node` path (`command -v node`) and the checkout root. If `
 bun run share:build
 ```
 
-This writes `dist/codex-usage-dashboard/` and a ZIP from the newest local snapshot. Recipients extract it and open `index.html`; no install or internet needed. The package omits raw JSON but embeds the same sensitive usage data, so share it deliberately.
+This writes `dist/codex-usage-dashboard/` and a ZIP from the newest local snapshot. Recipients extract it and run the included `node serve.js` (ES modules cannot load from `file://`); no install or internet needed. The package omits raw JSON but embeds the same sensitive usage data, so share it deliberately.
 
 ## Development
 
@@ -117,11 +117,11 @@ bun run test
 ```
 
 - `index.html`, `dashboard.js`: browser shell, controls, and rendering.
-- `dashboard-core.js`: validation and aggregation (browser + CommonJS).
-- `scripts/refresh.mjs`: the `bun run refresh [provider]` entry point.
-- `scripts/refresh-data.mjs`: `codex`/`claude` refresh and archive publication.
-- `scripts/refresh-opencode.mjs`, `scripts/fetch-opencode.mjs`: opencode collection and export.
-- `scripts/build-share.mjs`: offline folder and ZIP creation; `serve.mjs`: loopback static server.
+- `dashboard-core.js`: validation and aggregation, imported by the browser and tests.
+- `scripts/refresh.js`: the `bun run refresh [provider]` entry point.
+- `scripts/refresh-data.js`: `codex`/`claude` refresh and archive publication.
+- `scripts/refresh-opencode.js`, `scripts/fetch-opencode.js`: opencode collection and export.
+- `scripts/build-share.js`: offline folder and ZIP creation; `serve.js`: loopback static server.
 - `tests/`: Node's built-in test runner; `vendor/`: pinned Chart.js and notices.
 
-Node-side scripts use ESM (`.mjs`); browser files and the dual-mode `dashboard-core.js` and its tests stay classic `.js`.
+Everything is ESM (`"type": "module"`); the browser loads `dashboard.js` as a module.

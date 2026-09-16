@@ -9,7 +9,6 @@ const CONTENT_TYPES = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".md", "text/markdown; charset=utf-8"],
-  [".mjs", "text/javascript; charset=utf-8"],
   [".svg", "image/svg+xml"],
 ]);
 
@@ -105,15 +104,30 @@ function parsePort(value) {
 const isCommandLine = process.argv[1]
   && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
+const USAGE = `Usage: node serve.js [port]
+
+Serves this folder on 127.0.0.1 (default port 8765) so the browser can load the
+dashboard and its ES modules over http. Open the printed URL, then press Ctrl-C
+to stop.
+`;
+
 if (isCommandLine) {
-  try {
-    const { server, url } = await startStaticServer({ port: parsePort(process.argv[2]) });
-    console.log(`AI Usage: ${url}`);
-    const stop = () => server.close(() => process.exit(0));
-    process.once("SIGINT", stop);
-    process.once("SIGTERM", stop);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(USAGE);
+  } else if (args.length > 1) {
+    console.error(`Too many arguments.\n\n${USAGE}`);
     process.exitCode = 1;
+  } else {
+    try {
+      const { server, url } = await startStaticServer({ port: parsePort(args[0]) });
+      console.log(`AI Usage: ${url} (Ctrl-C to stop)`);
+      const stop = () => server.close(() => process.exit(0));
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
   }
 }
