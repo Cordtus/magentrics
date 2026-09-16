@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="data:,">
-  <title>Codex Usage</title>
+  <title>AI Usage</title>
   <style>
     :root {
       color-scheme: dark;
@@ -64,7 +64,6 @@
 
     button:focus-visible,
     select:focus-visible,
-    .file-action:focus-within,
     [tabindex="-1"]:focus-visible {
       outline: 2px solid var(--focus);
       outline-offset: 3px;
@@ -145,12 +144,10 @@
       padding-bottom: 0.2rem;
     }
 
-    .file-action {
-      display: inline-flex;
+    .launcher-button,
+    .launcher-submit,
+    .launcher-close {
       min-height: 2.75rem;
-      align-items: center;
-      justify-content: center;
-      gap: 0.7rem;
       padding: 0.65rem 1rem;
       border: 1px solid var(--accent);
       border-radius: 0.3rem;
@@ -160,23 +157,176 @@
       font-size: 0.8rem;
       font-weight: 760;
       letter-spacing: 0.015em;
-      transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
     }
 
-    .file-action::before {
-      content: "+";
+    .launcher-button::before {
+      content: ">";
+      margin-right: 0.55rem;
       font-family: var(--mono);
-      font-size: 1rem;
-      line-height: 1;
     }
 
-    .file-action:hover {
+    .launcher-button:hover,
+    .launcher-submit:hover,
+    .launcher-close:hover {
       border-color: var(--accent-strong);
       background: var(--accent-strong);
-      transform: translateY(-1px);
     }
 
-    .file-action.is-loading {
+    .launcher-dialog {
+      width: min(42rem, calc(100% - 2rem));
+      padding: 0;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.45rem;
+      background: var(--surface-raised);
+      color: var(--text);
+      box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.45);
+    }
+
+    .launcher-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.72);
+    }
+
+    .launcher-content {
+      padding: 1.4rem;
+    }
+
+    .launcher-heading {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .launcher-heading h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .launcher-heading p,
+    .launcher-card p {
+      margin: 0.3rem 0 0;
+      color: var(--text-soft);
+      font-size: 0.82rem;
+    }
+
+    .launcher-heading p a,
+    .launcher-card p a,
+    .site-footer a {
+      color: var(--accent-strong);
+    }
+
+    .launcher-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    .launcher-card {
+      display: flex;
+      min-height: 8rem;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.8rem;
+      padding: 1rem;
+      border: 1px solid var(--rule);
+      border-radius: 0.3rem;
+      background: var(--surface);
+    }
+
+    .launcher-card strong {
+      display: block;
+      font-size: 0.9rem;
+    }
+
+    .launcher-card-wide {
+      grid-column: 1 / -1;
+    }
+
+    .launcher-command {
+      width: 100%;
+      margin: 0.75rem 0;
+      padding: 0.7rem;
+      overflow-x: auto;
+      border: 1px solid var(--rule);
+      border-radius: 0.25rem;
+      background: var(--bg);
+      color: var(--accent-strong);
+      font: 0.72rem/1.5 var(--mono);
+      white-space: pre-wrap;
+    }
+
+    .launcher-command-row {
+      display: flex;
+      align-items: start;
+      gap: 0.5rem;
+    }
+
+    .launcher-command-row .launcher-command {
+      flex: 1;
+      margin: 0.75rem 0;
+    }
+
+    .copy-button {
+      display: grid;
+      flex: 0 0 auto;
+      width: 2.25rem;
+      height: 2.25rem;
+      margin-top: 0.75rem;
+      place-items: center;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.25rem;
+      background: var(--surface);
+      color: var(--text-soft);
+      cursor: pointer;
+    }
+
+    .copy-button:hover,
+    .copy-button[data-copied="true"] {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .copy-button svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.5;
+    }
+
+    .launcher-command-label {
+      margin: 0.75rem 0 0.25rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .site-footer {
+      margin-top: 3rem;
+      padding: 1.2rem 0 2.5rem;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .site-footer summary {
+      color: var(--text-soft);
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .site-footer p {
+      max-width: 58rem;
+      margin: 0.7rem 0 0;
+    }
+
+    .launcher-button.is-loading {
       cursor: wait;
       opacity: 0.68;
       transform: none;
@@ -652,8 +802,16 @@
       }
 
       .header-actions,
-      .file-action {
+      .launcher-button {
         width: 100%;
+      }
+
+      .launcher-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .launcher-card-wide {
+        grid-column: auto;
       }
 
       .dataset-meta {
@@ -739,7 +897,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <h1>Codex Usage</h1>
+        <h1>AI Usage</h1>
         <p class="dataset-meta" aria-live="polite">
           <span class="source-label" id="source-label">Loading data</span>
           <span class="meta-separator" aria-hidden="true">/</span>
@@ -749,13 +907,45 @@
         </p>
       </div>
       <div class="header-actions">
-        <label class="file-action" id="file-action">
-          <span id="file-action-text">Load JSON</span>
-          <input class="visually-hidden" id="file-input" type="file" accept=".json,application/json" aria-describedby="file-help">
-        </label>
-        <span class="visually-hidden" id="file-help">Select or drop a ccusage Codex JSON file.</span>
+        <button class="launcher-button" id="launcher-button" type="button" title="Add your usage data">Add Your Usage</button>
       </div>
     </header>
+
+    <dialog class="launcher-dialog" id="launcher-dialog" aria-labelledby="launcher-heading">
+      <div class="launcher-content">
+        <div class="launcher-heading">
+          <div>
+            <h2 id="launcher-heading">Load usage data</h2>
+            <p>Select an export, or generate one first.</p>
+          </div>
+          <button class="launcher-close" id="launcher-close" type="button">Close</button>
+        </div>
+        <div class="launcher-grid">
+          <section class="launcher-card">
+            <div>
+              <strong>JSON</strong>
+              <p>Canonical daily usage exports.</p>
+            </div>
+            <label class="launcher-submit" for="file-input">Add File</label>
+            <input class="visually-hidden" id="file-input" type="file" accept=".json,application/json" aria-describedby="file-help">
+            <span class="visually-hidden" id="file-help">Select a compatible usage JSON file.</span>
+          </section>
+          <section class="launcher-card launcher-card-wide">
+            <div>
+              <strong>Generating the JSON file</strong>
+              <p>Run this command in a terminal. It creates <code>aiusage.json</code> in that terminal's current directory. Upload the file using the button above.</p>
+            </div>
+            <div class="launcher-command-row">
+            <pre class="launcher-command" id="generate-command">npx ccusage opencode daily --json &gt; aiusage.json &amp;&amp; pwd</pre>
+              <button class="copy-button" type="button" data-copy-target="generate-command" aria-label="Copy generation command" title="Copy command">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1.5"></rect><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"></path></svg>
+              </button>
+            </div>
+            <p><a href="https://opencode.ai/docs/" target="_blank" rel="noreferrer">OpenCode documentation</a></p>
+          </section>
+        </div>
+      </div>
+    </dialog>
 
     <section class="notice" id="error-region" role="alert" tabindex="-1" hidden>
       <div>
@@ -770,7 +960,7 @@
     <section class="empty-state" id="empty-state">
       <div class="empty-state-inner">
         <h2>No usage data</h2>
-        <p>Load or drop a ccusage Codex JSON file.</p>
+        <p>Open Add Your Usage to load a usage export.</p>
       </div>
     </section>
 
@@ -779,7 +969,7 @@
         <div class="section-heading summary-heading">
           <div>
             <h2 id="summary-heading">Account total</h2>
-            <p class="section-description" id="detail-description">Combined usage across all bundled users.</p>
+            <p class="section-description" id="detail-description">Combined usage across all users in this export.</p>
           </div>
           <label class="user-detail-control" id="user-detail-control" hidden>
             Detail view
@@ -986,6 +1176,15 @@
         </details>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <details>
+        <summary>Privacy and data handling</summary>
+        <p>This is a client-side application. JSON files selected or dropped into the dashboard are read by your browser, validated in memory, and used only to render this page. They are not uploaded, stored in local storage, sent to an API, or included in telemetry.</p>
+        <p>The OpenCode command runs on your machine and writes its JSON output to the path you choose. The public site does not connect to your OpenCode server. Static hosting may receive ordinary web request metadata such as an IP address, browser user agent, and requested asset paths, but it does not receive the contents of your usage export.</p>
+        <p>External documentation links leave this site and are governed by their own privacy policies. Review any export before sharing it: usage dates, token totals, costs, model names, project paths, and other metadata may be sensitive.</p>
+      </details>
+    </footer>
   </div>
 
   <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
@@ -1002,7 +1201,6 @@
 
   <script src="vendor/chart.umd.min.js"></script>
   <script src="vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="data/latest.js"></script>
   <script src="dashboard-core.js"></script>
   <script src="dashboard.js"></script>
 </body>

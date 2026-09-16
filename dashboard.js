@@ -63,8 +63,9 @@
     compositionDataBody: document.getElementById("composition-data-body"),
     cumulativeDataBody: document.getElementById("cumulative-data-body"),
     fileInput: document.getElementById("file-input"),
-    fileAction: document.getElementById("file-action"),
-    fileActionText: document.getElementById("file-action-text"),
+    launcherButton: document.getElementById("launcher-button"),
+    launcherDialog: document.getElementById("launcher-dialog"),
+    launcherClose: document.getElementById("launcher-close"),
     errorRegion: document.getElementById("error-region"),
     errorTitle: document.getElementById("error-title"),
     errorMessage: document.getElementById("error-message"),
@@ -134,9 +135,8 @@
   }
 
   function setLoading(isLoading) {
-    elements.fileAction.classList.toggle("is-loading", isLoading);
+    elements.launcherButton.classList.toggle("is-loading", isLoading);
     elements.fileInput.disabled = isLoading;
-    elements.fileActionText.textContent = isLoading ? "Reading JSON" : "Load JSON";
     elements.body.setAttribute("aria-busy", String(isLoading));
   }
 
@@ -156,13 +156,13 @@
     if (error && typeof error.message === "string") {
       return error.message.replace(/\s+/g, " ").trim();
     }
-    return "This is not a ccusage Codex JSON file.";
+    return "This is not a compatible usage JSON file.";
   }
 
   function retentionMessage() {
     return state.model
       ? " Your current data is unchanged."
-      : " Load or drop a ccusage Codex JSON file.";
+      : " Load or drop a compatible usage JSON file.";
   }
 
   function makeMetric(label, value, detail, exactValue) {
@@ -354,7 +354,7 @@
       : source.name;
     elements.dateRange.textContent = `${formatDate(summary.dateStart)} – ${formatDate(summary.dateEnd)}`;
     elements.latestRecord.textContent = `Updated ${formatDate(summary.latestDate || summary.dateEnd)}`;
-    document.title = `Codex Usage · ${detailName} · ${formatDate(summary.latestDate || summary.dateEnd)}`;
+    document.title = `AI Usage · ${detailName} · ${formatDate(summary.latestDate || summary.dateEnd)}`;
   }
 
   function chartAnimation() {
@@ -897,9 +897,9 @@
     elements.summaryHeading.textContent = detailName;
     elements.detailDescription.textContent = state.bundle
       ? detailName === "Account total"
-        ? "Combined usage across all bundled users."
+        ? "Combined usage across all users in this export."
         : `Separate usage for ${detailName}; account totals remain available above.`
-      : "A session-only ccusage export. Reload to restore bundled data.";
+      : "A single export. Reload to clear the current data.";
     renderSummary(model.summary);
     renderModelTable(model.models);
     renderMonthlyTable(model.monthly);
@@ -978,7 +978,7 @@
         state.model = window.CodexUsageCore.buildDashboardData(raw);
         state.source = source;
         configureDetailSelector(null);
-        renderDashboard(state.model, source, source.kind === "generated" ? "Bundled export" : source.name);
+        renderDashboard(state.model, source, source.kind === "generated" ? "Loaded export" : source.name);
       }
     } catch (error) {
       showError(
@@ -1020,6 +1020,41 @@
       if (sequence === state.loadSequence) setLoading(false);
       elements.fileInput.value = "";
     }
+  }
+
+  function closeLauncher() {
+    if (elements.launcherDialog.open) elements.launcherDialog.close();
+  }
+
+  function setupLauncher() {
+    elements.launcherButton.addEventListener("click", () => elements.launcherDialog.showModal());
+    elements.launcherClose.addEventListener("click", closeLauncher);
+    document.querySelectorAll("[data-copy-target]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const command = document.getElementById(button.dataset.copyTarget).textContent.trim();
+        try {
+          await navigator.clipboard.writeText(command);
+        } catch (_error) {
+          const input = document.createElement("textarea");
+          input.value = command;
+          input.setAttribute("readonly", "");
+          input.style.position = "fixed";
+          input.style.opacity = "0";
+          document.body.append(input);
+          input.select();
+          document.execCommand("copy");
+          input.remove();
+        }
+        button.dataset.copied = "true";
+        button.setAttribute("aria-label", "Command copied");
+        button.title = "Copied";
+        window.setTimeout(() => {
+          button.dataset.copied = "false";
+          button.setAttribute("aria-label", "Copy generation command");
+          button.title = "Copy command";
+        }, 1600);
+      });
+    });
   }
 
   function setToggle(group, attribute, activeValue) {
@@ -1066,6 +1101,7 @@
 
   function setupFileLoading() {
     elements.fileInput.addEventListener("change", () => {
+      closeLauncher();
       loadFile(elements.fileInput.files && elements.fileInput.files[0]);
     });
 
@@ -1104,10 +1140,48 @@
     });
   }
 
+  // ponytail: 30s poll of the local publisher pointers, swap for SSE if the
+  // opencode server ever streams usage events to the browser.
+  function setupLiveReload() {
+    if (!new URLSearchParams(window.location.search).has("live")) return;
+    if (window.location.protocol === "file:") {
+      showError(
+        "Live mode needs a server",
+        "Open this dashboard through node serve.mjs to use ?live=1.",
+        false,
+      );
+      return;
+    }
+
+    let generatedAt = null;
+    const refresh = async () => {
+      try {
+        if (state.source && state.source.kind === "selected") return;
+        const pointerResponse = await fetch(`data/latest.json?ts=${Date.now()}`, { cache: "no-store" });
+        if (!pointerResponse.ok) return;
+        const pointer = await pointerResponse.json();
+        if (!pointer || !pointer.generatedAt || pointer.generatedAt === generatedAt) return;
+        const dataResponse = await fetch(`data/latest-data.json?ts=${Date.now()}`, { cache: "no-store" });
+        if (!dataResponse.ok) return;
+        const bundle = await dataResponse.json();
+        if (activateRaw(bundle, { kind: "generated", name: "local snapshot" }, false)) {
+          generatedAt = pointer.generatedAt;
+        }
+      } catch (_error) {
+        // Transient file/serve error; retry on the next interval.
+      }
+    };
+
+    refresh();
+    window.setInterval(refresh, 30000);
+  }
+
   function initialize() {
     setupToggles();
     setupDetailSelector();
+    setupLauncher();
     setupFileLoading();
+    setupLiveReload();
     elements.dismissError.addEventListener("click", clearError);
 
     if (!window.CodexUsageCore
@@ -1123,20 +1197,7 @@
       return;
     }
 
-    if (Object.prototype.hasOwnProperty.call(window, "CODEX_USAGE_DATA")) {
-      activateRaw(
-        window.CODEX_USAGE_DATA,
-        { kind: "generated", name: "usage-data.js" },
-        false,
-      );
-    } else {
-      elements.sourceLabel.textContent = "No usage data";
-      showError(
-        "Bundled data is unavailable",
-        "usage-data.js is missing. Load or drop a ccusage Codex JSON file.",
-        false,
-      );
-    }
+    elements.sourceLabel.textContent = "No data loaded";
 
     requestAnimationFrame(() => elements.body.classList.add("is-ready"));
   }

@@ -108,7 +108,7 @@ const isCommandLine = process.argv[1]
 if (isCommandLine) {
   try {
     const { server, url } = await startStaticServer({ port: parsePort(process.argv[2]) });
-    console.log(`Codex Usage Dashboard: ${url}`);
+    console.log(`AI Usage: ${url}`);
     const stop = () => server.close(() => process.exit(0));
     process.once("SIGINT", stop);
     process.once("SIGTERM", stop);

@@ -366,6 +366,39 @@ test('accepts normal floating-point cost accumulation differences', () => {
 	assert.equal(result.summary.costUSD, 0.3);
 });
 
+test('normalizes ccusage provider daily exports before visualization', () => {
+	const result = buildDashboardData({
+		daily: [{
+			cacheCreationTokens: 1,
+			cacheReadTokens: 2,
+			date: '2026-02-04',
+			inputTokens: 10,
+			modelBreakdowns: [{
+				cacheCreationTokens: 1,
+				cacheReadTokens: 2,
+				inputTokens: 10,
+				modelName: 'model-a',
+				outputTokens: 5,
+			}],
+			outputTokens: 5,
+			totalCost: 0.25,
+			totalTokens: 18,
+		}],
+		totals: {
+			cacheCreationTokens: 1,
+			cacheReadTokens: 2,
+			inputTokens: 10,
+			outputTokens: 5,
+			totalCost: 0.25,
+			totalTokens: 18,
+		},
+	});
+
+	assert.equal(result.summary.totalTokens, 18);
+	assert.equal(result.summary.costUSD, 0.25);
+	assert.equal(result.models[0].model, 'model-a');
+});
+
 test('builds named user views and a date-union account total without collapsing fallback model-days', () => {
 	const myself = canonicalExport();
 	const mariusDay = clone(myself.daily[2]);

@@ -33,13 +33,13 @@ const VENDOR_FILES = [
   "THIRD_PARTY_LICENSES.md",
 ];
 
-const RECIPIENT_README = `# Codex Usage Dashboard
+const RECIPIENT_README = `# AI Usage
 
-This folder is a self-contained, offline Codex usage dashboard.
+This folder is a self-contained, offline usage dashboard.
 
 ## Open it
 
-Open \`index.html\` in a browser. It immediately shows the bundled usage snapshot.
+Open \`index.html\` in a browser. It immediately shows the packaged usage snapshot.
 
 On macOS, unpack and open it with one command:
 
@@ -59,17 +59,17 @@ Then open the loopback URL printed in the terminal. No install step is required.
 
 ## Load another JSON export
 
-Use **Load JSON** or drag a JSON file onto the page. The dashboard accepts output from:
+Use **Add Your Usage** or drag a JSON file onto the page. The dashboard accepts output from:
 
 \`\`\`bash
 npx ccusage@latest codex daily -j
 \`\`\`
 
-The selected file stays in the browser for the current page session only. Reload the page to return to the bundled snapshot.
+The selected file stays in the browser for the current page session only. Reload the page to return to the packaged snapshot.
 
 ## Privacy
 
-\`usage-data.js\` contains the separate user and account-total usage dates, costs, and model names from the bundled exports. The raw JSON files are omitted, but the bundled snapshot is not anonymized.
+\`usage-data.js\` contains the usage dates, costs, model names, and account totals included in the package. The package is not anonymized.
 
 The dashboard and its charts do not require internet access.
 `;

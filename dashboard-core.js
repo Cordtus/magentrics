@@ -41,6 +41,50 @@
 		return value !== null && typeof value === 'object' && !Array.isArray(value);
 	}
 
+	function normalizeExport(raw) {
+		if (!isObject(raw) || !Array.isArray(raw.daily)) return raw;
+		if (!raw.daily.some((day) => Array.isArray(day && day.modelBreakdowns))) return raw;
+
+		const daily = raw.daily.map((day) => {
+			const models = Object.fromEntries(day.modelBreakdowns.map((model) => {
+				const inputTokens = model.inputTokens || 0;
+				const outputTokens = model.outputTokens || 0;
+				const cacheCreationTokens = model.cacheCreationTokens || 0;
+				const cacheReadTokens = model.cacheReadTokens || 0;
+				return [model.modelName || 'unknown', {
+					cacheCreationTokens,
+					cacheReadTokens,
+					inputTokens,
+					isFallback: false,
+					outputTokens,
+					reasoningOutputTokens: 0,
+					totalTokens: inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
+				}];
+			}));
+			const inputTokens = day.inputTokens || 0;
+			const outputTokens = day.outputTokens || 0;
+			const cacheCreationTokens = day.cacheCreationTokens || 0;
+			const cacheReadTokens = day.cacheReadTokens || 0;
+			return {
+				cacheCreationTokens,
+				cacheReadTokens,
+				costUSD: day.totalCost || 0,
+				date: day.date,
+				inputTokens,
+				models,
+				outputTokens,
+				reasoningOutputTokens: 0,
+				totalTokens: inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
+			};
+		});
+		const totals = daily.reduce((result, day) => {
+			for (const field of TOKEN_FIELDS) result[field] += day[field];
+			result.costUSD += day.costUSD;
+			return result;
+		}, { ...zeroTokenMetrics(), costUSD: 0 });
+		return { daily, totals };
+	}
+
 	function assertObject(value, path) {
 		if (!isObject(value)) {
 			fail(`${path} must be an object`);
@@ -371,7 +415,7 @@
 	}
 
 	function buildDashboardData(raw) {
-		const { daily, totals } = normalizeAndValidate(raw);
+		const { daily, totals } = normalizeAndValidate(normalizeExport(raw));
 		return buildDashboardModel(daily, totals, aggregateModels(daily));
 	}
 
@@ -477,5 +521,6 @@
 	return {
 		buildDashboardData,
 		buildMultiUserDashboardData,
+		normalizeExport,
 	};
 });
