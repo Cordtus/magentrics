@@ -44,8 +44,8 @@ bun run refresh combined   # all providers in one snapshot, one source each
 To look at the result, serve the folder and open the URL it prints:
 
 ```bash
-bun run refresh opencode --serve           # http://127.0.0.1:8765/
-bun run refresh opencode --watch --serve   # live: http://127.0.0.1:8765/?live=1
+bun run refresh combined --serve           # refresh once, then serve http://127.0.0.1:8765/
+bun run refresh combined --watch --serve   # live: http://127.0.0.1:8765/?live=1
 ```
 
 `--watch` refreshes every `--interval <seconds>` (default 60); a cycle that finds no new usage prints `no changes` and does not publish. `--serve` uses `--port <n>` (default 8765). To view already-refreshed data without refreshing, run `node serve.js`.
