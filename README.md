@@ -5,6 +5,8 @@ A local, offline dashboard for CLI coding-assistant usage (Claude, Codex, OpenCo
 ## Features
 
 - Cost, token, and active-day summaries; daily/weekly trends; token composition; model ranking; monthly and cumulative charts.
+- A floating date-range picker pinned to the top-right that refilters every view, plus a user/detail selector for multi-user exports.
+- Smooth reloads: charts, cards, and numbers animate into the new data instead of snapping, with a fading snapshot of the previous chart behind them.
 - Live mode that reloads the page as new usage is published.
 - A self-contained offline copy you can hand to someone else.
 
@@ -119,8 +121,9 @@ bun run test
 - `index.html`, `dashboard.js`: browser shell, controls, and rendering.
 - `dashboard-core.js`: validation and aggregation, imported by the browser and tests.
 - `scripts/refresh.js`: the `bun run refresh [provider]` entry point.
-- `scripts/refresh-data.js`: `codex`/`claude` refresh and archive publication.
-- `scripts/refresh-opencode.js`, `scripts/fetch-opencode.js`: opencode collection and export.
+- `scripts/refresh-ccusage.js`: `codex`/`claude` refresh and archive publication.
+- `scripts/refresh-opencode.js`, `scripts/export-opencode.js`: opencode collection and one-shot export.
+- `scripts/snapshot.js`: atomic write + snapshot serialization helpers (and a legacy generator CLI).
 - `scripts/build-share.js`: offline folder and ZIP creation; `serve.js`: loopback static server.
 - `tests/`: Node's built-in test runner; `vendor/`: pinned Chart.js and notices.
 

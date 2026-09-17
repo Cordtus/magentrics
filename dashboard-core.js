@@ -148,6 +148,34 @@ function zeroTokenMetrics() {
 	return Object.fromEntries(TOKEN_FIELDS.map((field) => [field, 0]));
 }
 
+function exportDateRange(raw) {
+	const normalized = normalizeExport(raw);
+	if (!isObject(normalized) || !Array.isArray(normalized.daily)) return null;
+	const dates = normalized.daily
+		.map((day) => (isObject(day) ? day.date : null))
+		.filter((date) => typeof date === 'string')
+		.sort();
+	return dates.length > 0 ? { start: dates[0], end: dates[dates.length - 1] } : null;
+}
+
+function filterExport(raw, range = {}) {
+	const normalized = normalizeExport(raw);
+	if (!isObject(normalized) || !Array.isArray(normalized.daily)) return normalized;
+	const { start, end } = range;
+	const daily = normalized.daily.filter((day) => {
+		if (!isObject(day) || typeof day.date !== 'string') return false;
+		if (start && day.date < start) return false;
+		if (end && day.date > end) return false;
+		return true;
+	});
+	const totals = daily.reduce((result, day) => {
+		for (const field of TOKEN_FIELDS) result[field] += day[field] || 0;
+		result.costUSD += day.costUSD || 0;
+		return result;
+	}, { ...zeroTokenMetrics(), costUSD: 0 });
+	return { ...normalized, daily, totals };
+}
+
 function addTokenMetrics(target, source) {
 	for (const field of TOKEN_FIELDS) {
 		target[field] += source[field];
@@ -508,5 +536,7 @@ function buildMultiUserDashboardData(sources) {
 export {
 	buildDashboardData,
 	buildMultiUserDashboardData,
+	exportDateRange,
+	filterExport,
 	normalizeExport,
 };

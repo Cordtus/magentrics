@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// Builds the self-contained offline dashboard folder and ZIP.
+
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -24,7 +26,6 @@ const RUNTIME_FILES = [
   "index.html",
   "dashboard.js",
   "dashboard-core.js",
-  "usage-data.js",
   "serve.js",
 ];
 const VENDOR_FILES = [
@@ -63,7 +64,7 @@ The selected file stays in the browser for the current page session only. Reload
 
 ## Privacy
 
-\`usage-data.js\` contains the usage dates, costs, model names, and account totals included in the package. The package is not anonymized.
+\`data/snapshots/\` contains the usage dates, costs, model names, and account totals included in the package. The package is not anonymized.
 
 The dashboard and its charts do not require internet access.
 `;
@@ -74,7 +75,8 @@ async function defaultRunZip({ archivePath, cwd }) {
 
 async function assertRuntimeSources(projectRoot) {
   for (const relativePath of [
-    ...RUNTIME_FILES.filter((filename) => filename !== "usage-data.js"),
+    ...RUNTIME_FILES,
+    "data/latest.json",
     ...VENDOR_FILES.map((filename) => path.join("vendor", filename)),
   ]) {
     const sourcePath = path.join(projectRoot, relativePath);
@@ -169,24 +171,23 @@ export async function buildSharePackage(options = {}) {
 
   try {
     await mkdir(path.join(stagedPackage, "vendor"), { recursive: true });
-    await Promise.all(RUNTIME_FILES.map(async (filename) => {
-      const sourcePath = path.join(projectRoot, filename);
-      const targetPath = path.join(stagedPackage, filename);
-      if (filename === "index.html") {
-        const html = await readFile(sourcePath, "utf8");
-        await writeFile(targetPath, html.replace("data/latest.js", "usage-data.js"), "utf8");
-        return;
-      }
-      if (filename === "usage-data.js") {
-        await copyFile(latestSnapshotPath, targetPath);
-        return;
-      }
-      await copyFile(sourcePath, targetPath);
-    }));
+    await mkdir(path.join(stagedPackage, "data", "snapshots"), { recursive: true });
+    await Promise.all(RUNTIME_FILES.map((filename) => copyFile(
+      path.join(projectRoot, filename),
+      path.join(stagedPackage, filename),
+    )));
     await Promise.all(VENDOR_FILES.map((filename) => copyFile(
       path.join(projectRoot, "vendor", filename),
       path.join(stagedPackage, "vendor", filename),
     )));
+    await copyFile(
+      path.join(projectRoot, "data", "latest.json"),
+      path.join(stagedPackage, "data", "latest.json"),
+    );
+    await copyFile(
+      latestSnapshotPath,
+      path.join(stagedPackage, "data", "snapshots", path.basename(latestSnapshotPath)),
+    );
     await writeFile(path.join(stagedPackage, "README.md"), RECIPIENT_README, "utf8");
 
     await runZip({ archivePath: temporaryZip, cwd: stagingRoot });

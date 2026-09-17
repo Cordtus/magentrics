@@ -128,13 +128,75 @@
       font-size: 0.75rem;
     }
 
-    .dataset-meta .source-label {
-      color: var(--text-soft);
-    }
-
     .meta-separator {
       color: var(--rule-strong);
       user-select: none;
+    }
+
+    .range-panel {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 40;
+      display: flex;
+      align-items: flex-end;
+      gap: 0.7rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.5rem;
+      background: var(--surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+    }
+
+    .range-panel[hidden] {
+      display: none;
+    }
+
+    .range-title {
+      align-self: center;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .range-field {
+      display: grid;
+      gap: 0.2rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .range-field input {
+      min-height: 2rem;
+      padding: 0.2rem 0.4rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.3rem;
+      background: var(--surface-strong, var(--surface));
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+
+    .range-reset {
+      min-height: 2rem;
+      padding: 0 0.7rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.3rem;
+      background: transparent;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    .range-reset:hover {
+      background: var(--surface-hover);
     }
 
     .header-actions {
@@ -578,6 +640,22 @@
       height: 100% !important;
     }
 
+    .chart-ghost {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      opacity: 0.4;
+      pointer-events: none;
+      transition: opacity 1.1s ease;
+      will-change: opacity;
+    }
+
+    .chart-ghost--fade {
+      opacity: 0;
+    }
+
     .chart-fallback {
       display: grid;
       height: 100%;
@@ -899,8 +977,6 @@
       <div>
         <h1>AI Usage</h1>
         <p class="dataset-meta" aria-live="polite">
-          <span class="source-label" id="source-label">Loading data</span>
-          <span class="meta-separator" aria-hidden="true">/</span>
           <span id="date-range">Date range unavailable</span>
           <span class="meta-separator" aria-hidden="true">/</span>
           <span id="latest-record">Updated —</span>
@@ -910,6 +986,19 @@
         <button class="launcher-button" id="launcher-button" type="button" title="Add your usage data">Add Your Usage</button>
       </div>
     </header>
+
+    <div class="range-panel" id="range-panel" hidden>
+      <span class="range-title">Date range</span>
+      <label class="range-field">
+        <span>From</span>
+        <input type="date" id="range-start">
+      </label>
+      <label class="range-field">
+        <span>To</span>
+        <input type="date" id="range-end">
+      </label>
+      <button class="range-reset" id="range-reset" type="button">All dates</button>
+    </div>
 
     <dialog class="launcher-dialog" id="launcher-dialog" aria-labelledby="launcher-heading">
       <div class="launcher-content">
@@ -968,8 +1057,7 @@
       <section class="summary-band" aria-labelledby="summary-heading">
         <div class="section-heading summary-heading">
           <div>
-            <h2 id="summary-heading">Account total</h2>
-            <p class="section-description" id="detail-description">Combined usage across all users in this export.</p>
+            <h2 id="summary-heading">Overview</h2>
           </div>
           <label class="user-detail-control" id="user-detail-control" hidden>
             Detail view

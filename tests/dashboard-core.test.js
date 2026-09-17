@@ -1,8 +1,11 @@
-'use strict';
-
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDashboardData, buildMultiUserDashboardData } from "../dashboard-core.js";
+import {
+	buildDashboardData,
+	buildMultiUserDashboardData,
+	exportDateRange,
+	filterExport,
+} from "../dashboard-core.js";
 function canonicalExport() {
 	return {
 		daily: [
@@ -520,4 +523,68 @@ test('rejects token identities and model, daily, or top-level reconciliation fai
 		() => buildDashboardData(invalidCostReconciliation),
 		/totals\.costUSD does not reconcile with daily rows/,
 	);
+});
+
+function dayExport(date, tokens) {
+	return {
+		cacheCreationTokens: 0,
+		cacheReadTokens: 0,
+		costUSD: 0.1,
+		date,
+		inputTokens: tokens,
+		models: {
+			"model-a": {
+				cacheCreationTokens: 0,
+				cacheReadTokens: 0,
+				inputTokens: tokens,
+				isFallback: false,
+				outputTokens: tokens,
+				reasoningOutputTokens: 0,
+				totalTokens: tokens * 2,
+			},
+		},
+		outputTokens: tokens,
+		reasoningOutputTokens: 0,
+		totalTokens: tokens * 2,
+	};
+}
+
+test("filterExport narrows daily rows and recomputes reconciling totals", () => {
+	const raw = {
+		daily: [dayExport("2026-02-01", 1), dayExport("2026-02-02", 2), dayExport("2026-02-03", 3)],
+		totals: {
+			cacheCreationTokens: 0,
+			cacheReadTokens: 0,
+			costUSD: 0.3,
+			inputTokens: 6,
+			outputTokens: 6,
+			reasoningOutputTokens: 0,
+			totalTokens: 12,
+		},
+	};
+
+	const filtered = filterExport(raw, { start: "2026-02-02", end: "2026-02-02" });
+
+	assert.deepEqual(filtered.daily.map((day) => day.date), ["2026-02-02"]);
+	assert.equal(filtered.totals.totalTokens, 4);
+	assert.equal(filtered.totals.costUSD, 0.1);
+	assert.doesNotThrow(() => buildDashboardData(filtered));
+	assert.deepEqual(exportDateRange(raw), { start: "2026-02-01", end: "2026-02-03" });
+});
+
+test("filterExport with no range keeps every day", () => {
+	const raw = {
+		daily: [dayExport("2026-02-01", 1), dayExport("2026-02-03", 3)],
+		totals: {
+			cacheCreationTokens: 0,
+			cacheReadTokens: 0,
+			costUSD: 0.2,
+			inputTokens: 4,
+			outputTokens: 4,
+			reasoningOutputTokens: 0,
+			totalTokens: 8,
+		},
+	};
+
+	assert.equal(filterExport(raw, {}).daily.length, 2);
 });

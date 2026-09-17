@@ -1,4 +1,27 @@
-import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-core.js";
+import {
+  buildDashboardData,
+  buildMultiUserDashboardData,
+  exportDateRange,
+  filterExport,
+} from "./dashboard-core.js";
+
+// The packaged build ships the same data/latest.json + data/snapshots layout,
+// so this path is identical in development and in the shared copy. A missing
+// pointer (fresh checkout, never refreshed) just means the dashboard is empty.
+async function loadBundledSnapshot() {
+  try {
+    const response = await fetch("data/latest.json", { cache: "no-store" });
+    if (!response.ok) return null;
+    const pointer = await response.json();
+    if (!pointer || typeof pointer.snapshot !== "string") return null;
+    await import(new URL(`data/${pointer.snapshot}`, import.meta.url).href);
+    return globalThis.CODEX_USAGE_DATA || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+const bundledData = await loadBundledSnapshot();
 
 (function () {
   const COLORS = {
@@ -46,12 +69,14 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     body: document.body,
     dashboard: document.getElementById("dashboard"),
     emptyState: document.getElementById("empty-state"),
-    sourceLabel: document.getElementById("source-label"),
     dateRange: document.getElementById("date-range"),
     latestRecord: document.getElementById("latest-record"),
-    summaryHeading: document.getElementById("summary-heading"),
+    rangePanel: document.getElementById("range-panel"),
+    rangeStart: document.getElementById("range-start"),
+    rangeEnd: document.getElementById("range-end"),
+    rangeReset: document.getElementById("range-reset"),
+
     summaryGrid: document.getElementById("summary-grid"),
-    detailDescription: document.getElementById("detail-description"),
     userDetailControl: document.getElementById("user-detail-control"),
     userDetailSelect: document.getElementById("user-detail-select"),
     userComparisonSection: document.getElementById("user-comparison-section"),
@@ -97,6 +122,11 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     tokenScale: "logarithmic",
     charts: Object.create(null),
     chartFailures: new Set(),
+    metricNodes: new Map(),
+    sources: null,
+    rawSingle: null,
+    bounds: null,
+    range: { start: null, end: null },
     dragDepth: 0,
     loadSequence: 0,
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -165,25 +195,51 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
       : " Load or drop a compatible usage JSON file.";
   }
 
-  function makeMetric(label, value, detail, exactValue) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "metric";
+  // ponytail: 700ms count-up; add a shared timeline only if cards get staggered.
+  function animateValue(element, from, to, format) {
+    if (state.reducedMotion || !Number.isFinite(from) || from === to) {
+      element.textContent = format(to);
+      return;
+    }
+    const startedAt = performance.now();
+    const step = (now) => {
+      const progress = Math.min(1, (now - startedAt) / 700);
+      const eased = 1 - (1 - progress) ** 3;
+      element.textContent = format(from + (to - from) * eased);
+      if (progress < 1) requestAnimationFrame(step);
+      else element.textContent = format(to);
+    };
+    requestAnimationFrame(step);
+  }
 
-    const term = document.createElement("dt");
-    term.textContent = label;
+  function makeMetric(metric) {
+    let node = state.metricNodes.get(metric.label);
+    if (!node || !node.wrapper.isConnected) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "metric";
 
-    const description = document.createElement("dd");
-    const displayedValue = document.createElement("span");
-    displayedValue.className = "metric-value";
-    displayedValue.textContent = value;
-    if (exactValue) displayedValue.title = exactValue;
+      const term = document.createElement("dt");
+      term.textContent = metric.label;
 
-    const note = document.createElement("small");
-    note.textContent = detail;
+      const description = document.createElement("dd");
+      const valueElement = document.createElement("span");
+      valueElement.className = "metric-value";
 
-    description.append(displayedValue, note);
-    wrapper.append(term, description);
-    return wrapper;
+      const note = document.createElement("small");
+
+      description.append(valueElement, note);
+      wrapper.append(term, description);
+      node = { wrapper, valueElement, note, previous: metric.raw };
+      state.metricNodes.set(metric.label, node);
+    }
+
+    node.note.textContent = metric.detail;
+    if (metric.exact) node.valueElement.title = metric.exact;
+    else node.valueElement.removeAttribute("title");
+
+    animateValue(node.valueElement, node.previous, metric.raw, metric.format);
+    node.previous = metric.raw;
+    return node.wrapper;
   }
 
   function renderSummary(summary) {
@@ -192,44 +248,51 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
       : 0;
 
     const metrics = [
-      makeMetric(
-        "Estimated cost",
-        formatCurrency(summary.costUSD),
-        "Estimated by ccusage",
-        String(summary.costUSD),
-      ),
-      makeMetric(
-        "Total tokens",
-        formatCompact(summary.totalTokens),
-        `${formatCompact(summary.inputTokens)} input`,
-        formatInteger(summary.totalTokens),
-      ),
-      makeMetric(
-        "Output tokens",
-        formatCompact(summary.outputTokens),
-        "Reasoning included",
-        formatInteger(summary.outputTokens),
-      ),
-      makeMetric(
-        "Reasoning tokens",
-        formatCompact(summary.reasoningOutputTokens),
-        `${formatPercent(outputShare)} of output`,
-        formatInteger(summary.reasoningOutputTokens),
-      ),
-      makeMetric(
-        "Cache-read tokens",
-        formatCompact(summary.cacheReadTokens),
-        `${formatPercent(summary.cacheReadShare)} of total`,
-        formatInteger(summary.cacheReadTokens),
-      ),
-      makeMetric(
-        "Active days",
-        formatInteger(summary.recordedDays),
-        `${formatDate(summary.dateStart)} – ${formatDate(summary.dateEnd)}`,
-      ),
+      {
+        label: "Estimated cost",
+        raw: summary.costUSD,
+        format: formatCurrency,
+        detail: "Estimated by ccusage",
+        exact: String(summary.costUSD),
+      },
+      {
+        label: "Total tokens",
+        raw: summary.totalTokens,
+        format: formatCompact,
+        detail: `${formatCompact(summary.inputTokens)} input`,
+        exact: formatInteger(summary.totalTokens),
+      },
+      {
+        label: "Output tokens",
+        raw: summary.outputTokens,
+        format: formatCompact,
+        detail: "Reasoning included",
+        exact: formatInteger(summary.outputTokens),
+      },
+      {
+        label: "Reasoning tokens",
+        raw: summary.reasoningOutputTokens,
+        format: formatCompact,
+        detail: `${formatPercent(outputShare)} of output`,
+        exact: formatInteger(summary.reasoningOutputTokens),
+      },
+      {
+        label: "Cache-read tokens",
+        raw: summary.cacheReadTokens,
+        format: formatCompact,
+        detail: `${formatPercent(summary.cacheReadShare)} of total`,
+        exact: formatInteger(summary.cacheReadTokens),
+      },
+      {
+        label: "Active days",
+        raw: summary.recordedDays,
+        format: formatInteger,
+        detail: `${formatDate(summary.dateStart)} – ${formatDate(summary.dateEnd)}`,
+        exact: null,
+      },
     ];
 
-    elements.summaryGrid.replaceChildren(...metrics);
+    elements.summaryGrid.replaceChildren(...metrics.map(makeMetric));
   }
 
   function makeCell(value, options) {
@@ -348,17 +411,14 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     elements.cumulativeDataBody.replaceChildren(...rows);
   }
 
-  function updateHeader(summary, source, detailName) {
-    elements.sourceLabel.textContent = source.kind === "generated"
-      ? "Bundled data"
-      : source.name;
+  function updateHeader(summary, detailName) {
     elements.dateRange.textContent = `${formatDate(summary.dateStart)} – ${formatDate(summary.dateEnd)}`;
     elements.latestRecord.textContent = `Updated ${formatDate(summary.latestDate || summary.dateEnd)}`;
     document.title = `AI Usage · ${detailName} · ${formatDate(summary.latestDate || summary.dateEnd)}`;
   }
 
   function chartAnimation() {
-    return state.reducedMotion ? false : { duration: 320 };
+    return state.reducedMotion ? false : { duration: 900, easing: "easeInOutQuart" };
   }
 
   function commonChartOptions() {
@@ -431,15 +491,58 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     elements.chartStatus.hidden = false;
   }
 
+  function syncDatasets(chart, next) {
+    const current = chart.data.datasets;
+    next.forEach((dataset, index) => {
+      if (current[index]) Object.assign(current[index], dataset);
+      else current[index] = dataset;
+    });
+    current.length = next.length;
+  }
+
+  // Snapshot the canvas being replaced and fade it out over the new render, so
+  // an update reads as a trail rather than a hard cut.
+  function paintGhost(canvas) {
+    if (state.reducedMotion) return;
+    const frame = canvas.parentElement;
+    if (!frame) return;
+    let source;
+    try {
+      source = canvas.toDataURL("image/png");
+    } catch (_error) {
+      return;
+    }
+    frame.querySelectorAll(".chart-ghost").forEach((node) => node.remove());
+    const ghost = document.createElement("img");
+    ghost.className = "chart-ghost";
+    ghost.alt = "";
+    ghost.src = source;
+    frame.append(ghost);
+    requestAnimationFrame(() => ghost.classList.add("chart-ghost--fade"));
+    ghost.addEventListener("transitionend", () => ghost.remove(), { once: true });
+  }
+
   function createChart(name, canvas, fallback, config) {
-    destroyChart(name);
     canvas.hidden = false;
     fallback.hidden = true;
 
     if (typeof window.Chart !== "function") {
+      destroyChart(name);
       state.chartFailures.add(name);
       canvas.hidden = true;
       fallback.hidden = false;
+      updateChartStatus();
+      return;
+    }
+
+    const existing = state.charts[name];
+    if (existing) {
+      paintGhost(canvas);
+      existing.data.labels = config.data.labels;
+      syncDatasets(existing, config.data.datasets);
+      existing.options = config.options;
+      existing.update();
+      state.chartFailures.delete(name);
       updateChartStatus();
       return;
     }
@@ -893,13 +996,7 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
   }
 
   function renderDashboard(model, source, detailName) {
-    updateHeader(model.summary, source, detailName);
-    elements.summaryHeading.textContent = detailName;
-    elements.detailDescription.textContent = state.bundle
-      ? detailName === "Account total"
-        ? "Combined usage across all users in this export."
-        : `Separate usage for ${detailName}; account totals remain available above.`
-      : "A single export. Reload to clear the current data.";
+    updateHeader(model.summary, detailName);
     renderSummary(model.summary);
     renderModelTable(model.models);
     renderMonthlyTable(model.monthly);
@@ -959,30 +1056,80 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     renderDashboard(state.model, state.source, detailName);
   }
 
+  function setRangeBounds() {
+    const dates = [];
+    const collect = (raw) => {
+      const range = exportDateRange(raw);
+      if (range) dates.push(range.start, range.end);
+    };
+    if (state.sources) state.sources.forEach((entry) => collect(entry.raw));
+    else if (state.rawSingle) collect(state.rawSingle);
+
+    if (dates.length === 0) {
+      state.bounds = null;
+      elements.rangePanel.hidden = true;
+      state.range = { start: null, end: null };
+      return;
+    }
+
+    dates.sort();
+    state.bounds = { start: dates[0], end: dates[dates.length - 1] };
+    state.range = { start: null, end: null };
+    for (const [input, value] of [
+      [elements.rangeStart, state.bounds.start],
+      [elements.rangeEnd, state.bounds.end],
+    ]) {
+      input.min = state.bounds.start;
+      input.max = state.bounds.end;
+      input.value = value;
+    }
+    elements.rangePanel.hidden = false;
+  }
+
+  function applyRange() {
+    const range = state.range;
+    if (state.sources) {
+      const sources = state.sources.map((entry) => ({
+        ...entry,
+        raw: filterExport(entry.raw, range),
+      }));
+      state.bundle = buildMultiUserDashboardData(sources);
+      configureDetailSelector(state.bundle);
+      const known = state.bundle.users.some((user) => user.id === state.detailId);
+      selectDetail(known ? state.detailId : "account");
+      return;
+    }
+    if (!state.rawSingle) return;
+    state.bundle = null;
+    state.detailId = "selected";
+    state.model = buildDashboardData(filterExport(state.rawSingle, range));
+    configureDetailSelector(null);
+    renderDashboard(
+      state.model,
+      state.source,
+      state.source.kind === "generated" ? "Loaded export" : state.source.name,
+    );
+  }
+
   function activateRaw(raw, source, focusOnError) {
     try {
+      state.source = source;
       if (isMultiUserBundle(raw)) {
-        state.bundle = buildMultiUserDashboardData(
-          raw.users.map((user) => ({
-            id: user.id,
-            name: user.name,
-            raw: user.data,
-          })),
-        );
-        state.source = source;
-        configureDetailSelector(state.bundle);
-        selectDetail("account");
+        state.sources = raw.users.map((user) => ({
+          id: user.id,
+          name: user.name,
+          raw: user.data,
+        }));
+        state.rawSingle = null;
       } else {
-        state.bundle = null;
-        state.detailId = "selected";
-        state.model = buildDashboardData(raw);
-        state.source = source;
-        configureDetailSelector(null);
-        renderDashboard(state.model, source, source.kind === "generated" ? "Loaded export" : source.name);
+        state.sources = null;
+        state.rawSingle = raw;
       }
+      setRangeBounds();
+      applyRange();
     } catch (error) {
       showError(
-        source.kind === "generated" ? "Bundled data is invalid" : `Could not load ${source.name}`,
+        source.kind === "generated" ? "Snapshot data is invalid" : `Could not load ${source.name}`,
         `${errorDetail(error)}${retentionMessage()}`,
         focusOnError,
       );
@@ -1024,6 +1171,31 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
 
   function closeLauncher() {
     if (elements.launcherDialog.open) elements.launcherDialog.close();
+  }
+
+  function setupRangeSelector() {
+    const apply = () => {
+      let start = elements.rangeStart.value || null;
+      let end = elements.rangeEnd.value || null;
+      if (start && end && start > end) {
+        [start, end] = [end, start];
+        elements.rangeStart.value = start;
+        elements.rangeEnd.value = end;
+      }
+      state.range = { start, end };
+      if (state.sources || state.rawSingle) applyRange();
+    };
+
+    elements.rangeStart.addEventListener("change", apply);
+    elements.rangeEnd.addEventListener("change", apply);
+    elements.rangeReset.addEventListener("click", () => {
+      if (state.bounds) {
+        elements.rangeStart.value = state.bounds.start;
+        elements.rangeEnd.value = state.bounds.end;
+      }
+      state.range = { start: null, end: null };
+      if (state.sources || state.rawSingle) applyRange();
+    });
   }
 
   function setupLauncher() {
@@ -1180,11 +1352,14 @@ import { buildDashboardData, buildMultiUserDashboardData } from "./dashboard-cor
     setupToggles();
     setupDetailSelector();
     setupLauncher();
+    setupRangeSelector();
     setupFileLoading();
     setupLiveReload();
     elements.dismissError.addEventListener("click", clearError);
 
-    elements.sourceLabel.textContent = "No data loaded";
+    if (bundledData) {
+      activateRaw(bundledData, { kind: "generated", name: "local snapshot" }, false);
+    }
 
     requestAnimationFrame(() => elements.body.classList.add("is-ready"));
   }

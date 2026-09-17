@@ -123,9 +123,12 @@ test("builds the exact offline folder and ZIP with a faithful bundled snapshot",
     "codex-usage-dashboard/README.md",
     "codex-usage-dashboard/dashboard-core.js",
     "codex-usage-dashboard/dashboard.js",
+    "codex-usage-dashboard/data/",
+    "codex-usage-dashboard/data/latest.json",
+    "codex-usage-dashboard/data/snapshots/",
+    "codex-usage-dashboard/data/snapshots/usage-fixture.js",
     "codex-usage-dashboard/index.html",
     "codex-usage-dashboard/serve.js",
-    "codex-usage-dashboard/usage-data.js",
     "codex-usage-dashboard/vendor/",
     "codex-usage-dashboard/vendor/THIRD_PARTY_LICENSES.md",
     "codex-usage-dashboard/vendor/chart.umd.min.js",
@@ -134,7 +137,12 @@ test("builds the exact offline folder and ZIP with a faithful bundled snapshot",
 
   const packagedHtml = await readFile(path.join(result.packageDir, "index.html"), "utf8");
   assert.doesNotMatch(packagedHtml, /<script[^>]+src=["'](?:https?:)?\/\//i);
-  const snapshot = await readFile(path.join(result.packageDir, "usage-data.js"), "utf8");
+  const packagedScript = await readFile(path.join(result.packageDir, "dashboard.js"), "utf8");
+  assert.match(packagedScript, /loadBundledSnapshot/);
+  const snapshot = await readFile(
+    path.join(result.packageDir, "data", "snapshots", "usage-fixture.js"),
+    "utf8",
+  );
   const context = { window: {} };
   vm.runInNewContext(snapshot, context);
   assert.deepEqual(
@@ -162,8 +170,12 @@ test("packages the snapshot selected by the latest pointer", async (t) => {
   const result = await buildSharePackage({ projectRoot, distRoot });
 
   assert.equal(
-    await readFile(path.join(result.packageDir, "usage-data.js"), "utf8"),
+    await readFile(path.join(result.packageDir, "data", "snapshots", "usage-newest.js"), "utf8"),
     selectedSnapshot,
+  );
+  assert.equal(
+    JSON.parse(await readFile(path.join(result.packageDir, "data", "latest.json"), "utf8")).snapshot,
+    "snapshots/usage-newest.js",
   );
 });
 
@@ -173,7 +185,7 @@ test("a ZIP failure preserves the last successful archive and package folder", a
   const first = await buildSharePackage({ projectRoot, distRoot });
   const originalArchive = await readFile(first.zipPath);
   const originalPackageSnapshot = await readFile(
-    path.join(first.packageDir, "usage-data.js"),
+    path.join(first.packageDir, "data", "snapshots", "usage-fixture.js"),
     "utf8",
   );
   const changedMyself = validExport();
@@ -197,7 +209,7 @@ test("a ZIP failure preserves the last successful archive and package folder", a
 
   assert.deepEqual(await readFile(first.zipPath), originalArchive);
   assert.deepEqual(
-    await readFile(path.join(first.packageDir, "usage-data.js"), "utf8"),
+    await readFile(path.join(first.packageDir, "data", "snapshots", "usage-fixture.js"), "utf8"),
     originalPackageSnapshot,
   );
 });
