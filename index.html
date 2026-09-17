@@ -139,8 +139,9 @@
       right: 1rem;
       z-index: 40;
       display: flex;
+      flex-direction: column;
       align-items: flex-end;
-      gap: 0.7rem;
+      gap: 0.55rem;
       padding: 0.65rem 0.8rem;
       border: 1px solid var(--rule-strong);
       border-radius: 0.5rem;
@@ -150,6 +151,12 @@
 
     .range-panel[hidden] {
       display: none;
+    }
+
+    .range-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.7rem;
     }
 
     .range-title {
@@ -988,16 +995,22 @@
     </header>
 
     <div class="range-panel" id="range-panel" hidden>
-      <span class="range-title">Date range</span>
-      <label class="range-field">
-        <span>From</span>
-        <input type="date" id="range-start">
-      </label>
-      <label class="range-field">
-        <span>To</span>
-        <input type="date" id="range-end">
-      </label>
-      <button class="range-reset" id="range-reset" type="button">All dates</button>
+      <div class="range-row">
+        <span class="range-title">Date range</span>
+        <label class="range-field">
+          <span>From</span>
+          <input type="date" id="range-start">
+        </label>
+        <label class="range-field">
+          <span>To</span>
+          <input type="date" id="range-end">
+        </label>
+        <button class="range-reset" id="range-reset" type="button">All dates</button>
+      </div>
+      <div class="range-row" id="source-row" hidden>
+        <span class="range-title">Sources</span>
+        <div class="toggle-group" id="source-toggles" role="group" aria-label="Data sources"></div>
+      </div>
     </div>
 
     <dialog class="launcher-dialog" id="launcher-dialog" aria-labelledby="launcher-heading">

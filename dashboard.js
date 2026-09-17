@@ -75,6 +75,8 @@ const bundledData = await loadBundledSnapshot();
     rangeStart: document.getElementById("range-start"),
     rangeEnd: document.getElementById("range-end"),
     rangeReset: document.getElementById("range-reset"),
+    sourceRow: document.getElementById("source-row"),
+    sourceToggles: document.getElementById("source-toggles"),
 
     summaryGrid: document.getElementById("summary-grid"),
     userDetailControl: document.getElementById("user-detail-control"),
@@ -124,6 +126,7 @@ const bundledData = await loadBundledSnapshot();
     chartFailures: new Set(),
     metricNodes: new Map(),
     sources: null,
+    selectedIds: null,
     rawSingle: null,
     bounds: null,
     range: { start: null, end: null },
@@ -1056,6 +1059,34 @@ const bundledData = await loadBundledSnapshot();
     renderDashboard(state.model, state.source, detailName);
   }
 
+  function renderSourceToggles() {
+    if (!state.sources || state.sources.length < 2) {
+      elements.sourceToggles.replaceChildren();
+      elements.sourceRow.hidden = true;
+      return;
+    }
+    const buttons = state.sources.map((source) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "toggle-button";
+      button.textContent = source.name;
+      button.setAttribute("aria-pressed", String(state.selectedIds.has(source.id)));
+      button.addEventListener("click", () => {
+        if (state.selectedIds.has(source.id)) {
+          if (state.selectedIds.size === 1) return;
+          state.selectedIds.delete(source.id);
+        } else {
+          state.selectedIds.add(source.id);
+        }
+        renderSourceToggles();
+        applyRange();
+      });
+      return button;
+    });
+    elements.sourceToggles.replaceChildren(...buttons);
+    elements.sourceRow.hidden = false;
+  }
+
   function setRangeBounds() {
     const dates = [];
     const collect = (raw) => {
@@ -1064,6 +1095,17 @@ const bundledData = await loadBundledSnapshot();
     };
     if (state.sources) state.sources.forEach((entry) => collect(entry.raw));
     else if (state.rawSingle) collect(state.rawSingle);
+
+    if (state.sources) {
+      const ids = state.sources.map((entry) => entry.id);
+      const kept = state.selectedIds
+        ? ids.filter((id) => state.selectedIds.has(id))
+        : ids;
+      state.selectedIds = new Set(kept.length > 0 ? kept : ids);
+      renderSourceToggles();
+    } else {
+      state.selectedIds = null;
+    }
 
     if (dates.length === 0) {
       state.bounds = null;
@@ -1089,10 +1131,9 @@ const bundledData = await loadBundledSnapshot();
   function applyRange() {
     const range = state.range;
     if (state.sources) {
-      const sources = state.sources.map((entry) => ({
-        ...entry,
-        raw: filterExport(entry.raw, range),
-      }));
+      const sources = state.sources
+        .filter((entry) => state.selectedIds.has(entry.id))
+        .map((entry) => ({ ...entry, raw: filterExport(entry.raw, range) }));
       state.bundle = buildMultiUserDashboardData(sources);
       configureDetailSelector(state.bundle);
       const known = state.bundle.users.some((user) => user.id === state.detailId);

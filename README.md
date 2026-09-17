@@ -5,7 +5,7 @@ A local, offline dashboard for CLI coding-assistant usage (Claude, Codex, OpenCo
 ## Features
 
 - Cost, token, and active-day summaries; daily/weekly trends; token composition; model ranking; monthly and cumulative charts.
-- A floating date-range picker pinned to the top-right that refilters every view, plus a user/detail selector for multi-user exports.
+- A floating, viewport-pinned panel with a date-range picker and per-source toggles (Codex / Claude / OpenCode or each user), plus a detail selector — every view and the combined total respond live.
 - Smooth reloads: charts, cards, and numbers animate into the new data instead of snapping, with a fading snapshot of the previous chart behind them.
 - Live mode that reloads the page as new usage is published.
 - A self-contained offline copy you can hand to someone else.
@@ -30,13 +30,16 @@ bun install
 
 ## Generate and view
 
-Pick a provider as the first argument (`codex`, `claude`, or `opencode`; it is required):
+Pick a provider as the first argument (`codex`, `claude`, `opencode`, or `combined`; it is required):
 
 ```bash
 bun run refresh codex
 bun run refresh claude
 bun run refresh opencode
+bun run refresh combined   # all providers in one snapshot, one source each
 ```
+
+`combined` runs every provider and publishes a single snapshot with a source per provider (skipping any that returns no usage), so the dashboard shows Codex, Claude, and OpenCode side by side with a combined total.
 
 To look at the result, serve the folder and open the URL it prints:
 
@@ -122,6 +125,7 @@ bun run test
 - `dashboard-core.js`: validation and aggregation, imported by the browser and tests.
 - `scripts/refresh.js`: the `bun run refresh [provider]` entry point.
 - `scripts/refresh-ccusage.js`: `codex`/`claude` refresh and archive publication.
+- `scripts/refresh-combined.js`: runs every provider and publishes one source-per-provider snapshot.
 - `scripts/refresh-opencode.js`, `scripts/export-opencode.js`: opencode collection and one-shot export.
 - `scripts/snapshot.js`: atomic write + snapshot serialization helpers (and a legacy generator CLI).
 - `scripts/build-share.js`: offline folder and ZIP creation; `serve.js`: loopback static server.
