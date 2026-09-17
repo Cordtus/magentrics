@@ -72,6 +72,23 @@ async function runDefaultExporter(provider) {
   return result.stdout;
 }
 
+export async function exportCcusage(provider, options = {}) {
+  const run = options.runExporter || (() => runDefaultExporter(provider));
+  const json = await run();
+  let raw;
+  try {
+    raw = JSON.parse(json);
+  } catch (error) {
+    throw new Error(`ccusage produced malformed JSON: ${error.message}`);
+  }
+  try {
+    dashboardCore.buildDashboardData(raw);
+  } catch (error) {
+    throw new Error(`ccusage export is invalid: ${error.message}`);
+  }
+  return raw;
+}
+
 async function readManifest(manifestPath, fileOperations) {
   let parsed;
   try {
@@ -140,23 +157,11 @@ export async function refresh(options = {}) {
   if (provider !== "codex" && provider !== "claude") {
     throw new Error(`Unsupported ccusage provider: ${provider}`);
   }
-  const runExporter = options.runExporter || (() => runDefaultExporter(provider));
   const now = options.now ? options.now() : new Date();
   const timestamp = formatTimestamp(now);
   const manifest = await readManifest(manifestPath, fileOperations);
   const personal = manifest.users.find((user) => user.id === manifest.personalUserId);
-  const personalJson = await runExporter();
-  let personalRaw;
-  try {
-    personalRaw = JSON.parse(personalJson);
-  } catch (error) {
-    throw new Error(`ccusage produced malformed JSON: ${error.message}`);
-  }
-  try {
-    dashboardCore.buildDashboardData(personalRaw);
-  } catch (error) {
-    throw new Error(`ccusage export is invalid: ${error.message}`);
-  }
+  const personalRaw = await exportCcusage(provider, options);
 
   if (options.skipUnchanged) {
     try {

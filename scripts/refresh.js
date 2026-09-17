@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 
-// CLI entry point: bun run refresh <codex|claude|opencode> [--watch] [--serve].
+// CLI entry point: bun run refresh <codex|claude|opencode|combined> [--watch] [--serve].
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { startStaticServer } from "../serve.js";
 import { refresh } from "./refresh-ccusage.js";
+import { refreshCombined } from "./refresh-combined.js";
 import { ensureOpenCodeServer, runOpenCodeRefresh } from "./refresh-opencode.js";
 
-const PROVIDERS = ["codex", "claude", "opencode"];
+const PROVIDERS = ["codex", "claude", "opencode", "combined"];
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_PORT = 8765;
 
@@ -21,8 +22,11 @@ argument:
   claude     Claude usage via "ccusage claude daily --json"
   opencode   Per-agent usage from a local opencode server (starts a temporary
              one when none is reachable, reuses one that is already running)
+  combined   All of the above in one snapshot, one source per provider
+             (providers with no usage are skipped)
 
 Example: bun run refresh opencode
+         bun run refresh combined --serve
 
 Modes (combine freely; default is update data once and exit):
   --watch        Keep refreshing on an interval until stopped
@@ -112,13 +116,29 @@ function clock() {
 function summarize(options, result) {
   if (result.unchanged) return "no changes";
   const snapshot = path.basename(result.snapshotPath);
+  if (options.provider === "combined") {
+    return `published ${snapshot} (${result.sources.map((source) => source.name).join(", ")})`;
+  }
   if (options.provider !== "opencode") return `published ${snapshot}`;
   const changed = result.fetchedSessions === 1 ? "1 session changed" : `${result.fetchedSessions} sessions changed`;
   return `published ${snapshot} (${result.messages} messages, ${changed})`;
 }
 
+function reportCombined(result) {
+  console.log(result.unchanged
+    ? "No changes since the last snapshot."
+    : `Published dashboard snapshot: ${result.snapshotPath}`);
+  console.log(`Sources: ${result.sources.map((source) => source.name).join(", ")}`);
+  if (result.skipped.length > 0) console.log(`Skipped: ${result.skipped.join(", ")}`);
+}
+
 async function refreshOnce(options) {
   if (options.provider === "opencode") return runOpenCodeRefresh(options);
+  if (options.provider === "combined") {
+    const result = await refreshCombined(options);
+    if (!options.quiet) reportCombined(result);
+    return result;
+  }
   const result = await refresh({ provider: options.provider, skipUnchanged: options.skipUnchanged });
   if (!options.quiet) {
     console.log(result.unchanged
@@ -134,7 +154,7 @@ async function main() {
   const looping = Boolean(options.watch || options.serve);
 
   let openCodeServer = null;
-  if (options.provider === "opencode" && looping) {
+  if ((options.provider === "opencode" || options.provider === "combined") && looping) {
     openCodeServer = await ensureOpenCodeServer(options);
     if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
   }

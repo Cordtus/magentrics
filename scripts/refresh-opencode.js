@@ -171,7 +171,7 @@ async function readCache(cachePath, fileOperations) {
   return { version: 1, sessions: {} };
 }
 
-export async function refreshOpenCodeUsage(options = {}) {
+export async function collectOpenCodeUsage(options = {}) {
   const projectRoot = path.resolve(options.projectRoot || defaultProjectRoot);
   const dataRoot = path.resolve(options.dataRoot || path.join(projectRoot, "data"));
   const cachePath = path.resolve(
@@ -195,15 +195,20 @@ export async function refreshOpenCodeUsage(options = {}) {
   if (options.writeCache !== false) {
     await writeAtomically(cachePath, `${JSON.stringify(result.cache)}\n`, fileOperations);
   }
+  return { ...result, cachePath, dataRoot, fileOperations, projectRoot };
+}
 
-  const sources = agentSources(result.agents, result.usage);
+export async function refreshOpenCodeUsage(options = {}) {
+  const collected = await collectOpenCodeUsage(options);
+  const { cachePath, dataRoot, fileOperations, projectRoot } = collected;
+  const sources = agentSources(collected.agents, collected.usage);
   const stats = {
     agents: sources.map(({ id, name }) => ({ id, name })),
     cachePath,
-    fetchedSessions: result.fetchedSessions,
-    messages: result.messages,
-    reusedSessions: result.reusedSessions,
-    sessions: result.sessions,
+    fetchedSessions: collected.fetchedSessions,
+    messages: collected.messages,
+    reusedSessions: collected.reusedSessions,
+    sessions: collected.sessions,
   };
 
   if (options.skipUnchanged) {
