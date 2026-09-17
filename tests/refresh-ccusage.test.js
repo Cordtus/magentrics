@@ -9,7 +9,7 @@ import vm from "node:vm";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const refreshUrl = pathToFileURL(
-  path.resolve(__dirname, "../scripts/refresh-data.js"),
+  path.resolve(__dirname, "../scripts/refresh-ccusage.js"),
 ).href;
 
 

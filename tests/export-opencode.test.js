@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import * as dashboardCore from "../dashboard-core.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fetcherPath = path.resolve(__dirname, "../scripts/fetch-opencode.js");
+const fetcherPath = path.resolve(__dirname, "../scripts/export-opencode.js");
 const fetcherUrl = pathToFileURL(fetcherPath).href;
 
 

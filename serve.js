@@ -1,3 +1,4 @@
+// Loopback-only static server for the dashboard.
 import { readFile, stat } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";

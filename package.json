@@ -6,7 +6,7 @@
     "start": "node serve.js",
     "start:opencode": "opencode serve",
     "refresh": "node scripts/refresh.js",
-    "fetch:opencode": "node scripts/fetch-opencode.js",
+    "export:opencode": "node scripts/export-opencode.js",
     "share:build": "node scripts/build-share.js",
     "test": "node --test tests/*.test.js"
   },

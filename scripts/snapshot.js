@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// Shared snapshot helpers (atomic writes, serialization) plus a legacy generator CLI.
+
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -162,7 +164,7 @@ async function generateSnapshot(inputPath, outputPath, operationOverrides = {}) 
   await writeAtomically(outputPath, serializeSnapshot(snapshot.data), fileOperations);
 }
 
-const USAGE = `Usage: node scripts/generate-data.js [input-json] [output-script]
+const USAGE = `Usage: node scripts/snapshot.js [input-json] [output-script]
 
 Validates a usage export (or a manifest of named sources) and writes a
 browser-loadable snapshot script atomically. Defaults to the gitignored

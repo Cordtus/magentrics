@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const generatorPath = path.resolve(__dirname, "../scripts/generate-data.js");
+const generatorPath = path.resolve(__dirname, "../scripts/snapshot.js");
 
 
 function validExport() {

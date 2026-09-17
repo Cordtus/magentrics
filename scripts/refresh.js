@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
+// CLI entry point: bun run refresh <codex|claude|opencode> [--watch] [--serve].
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { startStaticServer } from "../serve.js";
-import { refresh } from "./refresh-data.js";
+import { refresh } from "./refresh-ccusage.js";
 import { ensureOpenCodeServer, runOpenCodeRefresh } from "./refresh-opencode.js";
 
 const PROVIDERS = ["codex", "claude", "opencode"];

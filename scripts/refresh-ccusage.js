@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// Codex/Claude provider: runs ccusage, archives the raw export, and publishes a snapshot.
+
 import { execFile } from "node:child_process";
 import {
   mkdir,
@@ -14,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import * as dashboardCore from "../dashboard-core.js";
-import { serializeSnapshot, writeAtomically } from "./generate-data.js";
+import { serializeSnapshot, writeAtomically } from "./snapshot.js";
 
 const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -263,7 +265,7 @@ export async function publishSnapshot(sources, options = {}) {
   };
 }
 
-const USAGE = `Usage: node scripts/refresh-data.js [codex|claude]
+const USAGE = `Usage: node scripts/refresh-ccusage.js [codex|claude]
 
 Fetches the personal usage export, archives it under data/raw/, publishes a
 browser snapshot under data/snapshots/, and advances the data/latest.* pointers

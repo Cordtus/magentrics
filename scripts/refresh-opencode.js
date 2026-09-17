@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
+// OpenCode provider: collects per-agent usage from the local server and publishes a snapshot.
+
 import { spawn as spawnProcess } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_BASE_URL, fetchOpenCodeUsage } from "./fetch-opencode.js";
-import { publishSnapshot } from "./refresh-data.js";
-import { writeAtomically } from "./generate-data.js";
+import { DEFAULT_BASE_URL, fetchOpenCodeUsage } from "./export-opencode.js";
+import { publishSnapshot } from "./refresh-ccusage.js";
+import { writeAtomically } from "./snapshot.js";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const defaultProjectRoot = path.resolve(scriptDirectory, "..");
