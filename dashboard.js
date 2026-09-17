@@ -69,8 +69,6 @@ const bundledData = await loadBundledSnapshot();
     body: document.body,
     dashboard: document.getElementById("dashboard"),
     emptyState: document.getElementById("empty-state"),
-    dateRange: document.getElementById("date-range"),
-    latestRecord: document.getElementById("latest-record"),
     rangePanel: document.getElementById("range-panel"),
     rangeStart: document.getElementById("range-start"),
     rangeEnd: document.getElementById("range-end"),
@@ -415,8 +413,6 @@ const bundledData = await loadBundledSnapshot();
   }
 
   function updateHeader(summary, detailName) {
-    elements.dateRange.textContent = `${formatDate(summary.dateStart)} – ${formatDate(summary.dateEnd)}`;
-    elements.latestRecord.textContent = `Updated ${formatDate(summary.latestDate || summary.dateEnd)}`;
     document.title = `AI Usage · ${detailName} · ${formatDate(summary.latestDate || summary.dateEnd)}`;
   }
 

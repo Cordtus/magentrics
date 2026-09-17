@@ -117,7 +117,10 @@ function summarize(options, result) {
   if (result.unchanged) return "no changes";
   const snapshot = path.basename(result.snapshotPath);
   if (options.provider === "combined") {
-    return `published ${snapshot} (${result.sources.map((source) => source.name).join(", ")})`;
+    const names = result.sources.map((source) => source.name).join(", ");
+    const skipped = (result.skipped || []).map((entry) => entry.split(" (")[0]);
+    const note = skipped.length > 0 ? `; skipped ${skipped.join(", ")}` : "";
+    return `published ${snapshot} (${names}${note})`;
   }
   if (options.provider !== "opencode") return `published ${snapshot}`;
   const changed = result.fetchedSessions === 1 ? "1 session changed" : `${result.fetchedSessions} sessions changed`;
@@ -153,7 +156,30 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const looping = Boolean(options.watch || options.serve);
 
+  let staticServer = null;
+  let refreshTimer = null;
   let openCodeServer = null;
+  let busy = false;
+
+  const shutdown = () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (staticServer) staticServer.close();
+    if (openCodeServer) openCodeServer.stop();
+    process.exitCode = 0;
+  };
+  if (looping) {
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  }
+
+  // Start serving first so the URL is printed immediately; the first refresh can
+  // take a while, and ?live=1 picks up its snapshot when it lands.
+  if (options.serve) {
+    ({ server: staticServer } = await startStaticServer({ port: options.port }));
+    const { port } = staticServer.address();
+    console.log(`Dashboard: http://127.0.0.1:${port}/${options.watch ? "?live=1" : ""}`);
+  }
+
   if ((options.provider === "opencode" || options.provider === "combined") && looping) {
     openCodeServer = await ensureOpenCodeServer(options);
     if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
@@ -169,24 +195,6 @@ async function main() {
   const first = await runOnce();
   if (!looping) return;
   console.log(`[${clock()}] ${summarize(options, first)}`);
-
-  let server = null;
-  if (options.serve) {
-    ({ server } = await startStaticServer({ port: options.port }));
-    const { port } = server.address();
-    console.log(`AI Usage: http://127.0.0.1:${port}${options.watch ? "/?live=1" : "/"}`);
-  }
-
-  let refreshTimer = null;
-  let busy = false;
-  const shutdown = () => {
-    if (refreshTimer) clearInterval(refreshTimer);
-    if (server) server.close();
-    if (openCodeServer) openCodeServer.stop();
-    process.exitCode = 0;
-  };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
 
   if (options.watch) {
     const intervalSeconds = options.interval || DEFAULT_INTERVAL_SECONDS;

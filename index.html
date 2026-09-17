@@ -117,22 +117,6 @@
       line-height: 0.98;
     }
 
-    .dataset-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem 0.65rem;
-      align-items: center;
-      margin: 0;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 0.75rem;
-    }
-
-    .meta-separator {
-      color: var(--rule-strong);
-      user-select: none;
-    }
-
     .range-panel {
       position: fixed;
       top: 1rem;
@@ -899,15 +883,6 @@
         grid-column: auto;
       }
 
-      .dataset-meta {
-        display: grid;
-        gap: 0.2rem;
-      }
-
-      .meta-separator {
-        display: none;
-      }
-
       .summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         row-gap: 1.4rem;
@@ -983,11 +958,6 @@
     <header class="topbar">
       <div>
         <h1>AI Usage</h1>
-        <p class="dataset-meta" aria-live="polite">
-          <span id="date-range">Date range unavailable</span>
-          <span class="meta-separator" aria-hidden="true">/</span>
-          <span id="latest-record">Updated —</span>
-        </p>
       </div>
       <div class="header-actions">
         <button class="launcher-button" id="launcher-button" type="button" title="Add your usage data">Add Your Usage</button>
