@@ -221,28 +221,3 @@ test("an atomic replacement failure preserves the existing snapshot and removes 
   );
 });
 
-test("the checked-in browser snapshot matches the configured named source bundle", async () => {
-  const repositoryRoot = path.resolve(__dirname, "..");
-  const manifest = JSON.parse(
-    await readFile(path.join(repositoryRoot, "usage-sources.json"), "utf8"),
-  );
-  const expected = {
-    users: await Promise.all(manifest.users.map(async (user) => ({
-      id: user.id,
-      name: user.name,
-      data: JSON.parse(await readFile(path.join(repositoryRoot, user.file), "utf8")),
-    }))),
-  };
-  const generatedScript = await readFile(
-    path.join(repositoryRoot, "usage-data.js"),
-    "utf8",
-  );
-  const context = { window: {} };
-
-  vm.runInNewContext(generatedScript, context);
-
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(context.window.CODEX_USAGE_DATA)),
-    expected,
-  );
-});

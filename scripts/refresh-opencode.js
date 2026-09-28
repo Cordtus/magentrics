@@ -91,9 +91,17 @@ export async function ensureOpenCodeServer(options = {}) {
   const child = spawnImpl(bin, ["serve", "--hostname", hostname, "--port", port || "4096"], {
     stdio: ["ignore", "ignore", "inherit"],
   });
+  // A missing `opencode` binary emits an async "error" event. Without a listener
+  // that becomes an unhandled exception; capture it and surface a clear message.
+  let spawnError = null;
+  child.once("error", (error) => {
+    spawnError = error;
+  });
 
   const stop = async () => {
     if (child.exitCode !== null || child.signalCode) return;
+    // A failed spawn never launched a process and emits no "exit"; nothing to stop.
+    if (spawnError) return;
     child.kill("SIGTERM");
     await Promise.race([
       new Promise((resolve) => child.once("exit", resolve)),
@@ -105,6 +113,9 @@ export async function ensureOpenCodeServer(options = {}) {
   try {
     const deadline = Date.now() + (options.readyTimeoutMs || READY_TIMEOUT_MS);
     while (!(await serverResponds(baseUrl, fetchImpl))) {
+      if (spawnError) {
+        throw new Error(`cannot start the opencode server (${spawnError.message}); install opencode or start it with "opencode serve"`);
+      }
       if (child.exitCode !== null) {
         throw new Error(`opencode server exited before becoming ready (code ${child.exitCode})`);
       }

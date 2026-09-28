@@ -21,12 +21,13 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const defaultProjectRoot = path.resolve(scriptDirectory, "..");
-const PACKAGE_NAME = "codex-usage-dashboard";
+const PACKAGE_NAME = "ai-usage-dashboard";
 const RUNTIME_FILES = [
   "index.html",
   "dashboard.js",
   "dashboard-core.js",
   "serve.js",
+  "LICENSE",
 ];
 const VENDOR_FILES = [
   "chart.umd.min.js",
@@ -44,8 +45,8 @@ The dashboard is built from ES modules, so it must be served over http
 (browsers block modules on \`file://\`). Unpack it and start the included server:
 
 \`\`\`bash
-unzip -q codex-usage-dashboard.zip
-cd codex-usage-dashboard
+unzip -q ai-usage-dashboard.zip
+cd ai-usage-dashboard
 node serve.js
 \`\`\`
 
@@ -67,6 +68,10 @@ The selected file stays in the browser for the current page session only. Reload
 \`data/snapshots/\` contains the usage dates, costs, model names, and account totals included in the package. The package is not anonymized.
 
 The dashboard and its charts do not require internet access.
+
+## License
+
+MIT; see \`LICENSE\`. Bundled browser libraries are listed in \`vendor/THIRD_PARTY_LICENSES.md\`.
 `;
 
 async function defaultRunZip({ archivePath, cwd }) {
@@ -225,7 +230,7 @@ export async function buildSharePackage(options = {}) {
 
 const USAGE = `Usage: node scripts/build-share.js
 
-Builds dist/codex-usage-dashboard/ and a ZIP from the snapshot that
+Builds dist/ai-usage-dashboard/ and a ZIP from the snapshot that
 data/latest.json points to. Requires the system "zip" binary.
 
 Run "bun run refresh <codex|claude|opencode>" first to produce a snapshot.

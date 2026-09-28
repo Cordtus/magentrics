@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "codex-usage-dashboard",
+      "name": "ai-usage-dashboard",
       "devDependencies": {
         "ccusage": "^20.0.20",
       },

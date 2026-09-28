@@ -1,7 +1,13 @@
 {
-  "name": "codex-usage-dashboard",
+  "name": "ai-usage-dashboard",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "Local, offline dashboard for Claude, Codex, and OpenCode CLI usage exports.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node serve.js",
     "start:opencode": "opencode serve",
