@@ -59,7 +59,7 @@ async function makeFixture(t) {
   const distRoot = path.join(directory, "dist");
   await mkdir(path.join(projectRoot, "vendor"), { recursive: true });
 
-  for (const filename of ["index.html", "dashboard.js", "dashboard-core.js", "serve.js"]) {
+  for (const filename of ["index.html", "dashboard.js", "dashboard-core.js", "serve.js", "LICENSE"]) {
     await copyFile(path.join(repositoryRoot, filename), path.join(projectRoot, filename));
   }
   for (const filename of [
@@ -115,24 +115,25 @@ test("builds the exact offline folder and ZIP with a faithful bundled snapshot",
 
   const result = await buildSharePackage({ projectRoot, distRoot });
 
-  assert.equal(path.basename(result.packageDir), "codex-usage-dashboard");
+  assert.equal(path.basename(result.packageDir), "ai-usage-dashboard");
   assert.match(result.sha256, /^[a-f0-9]{64}$/);
   const { stdout } = await execFileAsync("unzip", ["-Z1", result.zipPath]);
   assert.deepEqual(stdout.trim().split("\n").sort(), [
-    "codex-usage-dashboard/",
-    "codex-usage-dashboard/README.md",
-    "codex-usage-dashboard/dashboard-core.js",
-    "codex-usage-dashboard/dashboard.js",
-    "codex-usage-dashboard/data/",
-    "codex-usage-dashboard/data/latest.json",
-    "codex-usage-dashboard/data/snapshots/",
-    "codex-usage-dashboard/data/snapshots/usage-fixture.js",
-    "codex-usage-dashboard/index.html",
-    "codex-usage-dashboard/serve.js",
-    "codex-usage-dashboard/vendor/",
-    "codex-usage-dashboard/vendor/THIRD_PARTY_LICENSES.md",
-    "codex-usage-dashboard/vendor/chart.umd.min.js",
-    "codex-usage-dashboard/vendor/chartjs-adapter-date-fns.bundle.min.js",
+    "ai-usage-dashboard/",
+    "ai-usage-dashboard/LICENSE",
+    "ai-usage-dashboard/README.md",
+    "ai-usage-dashboard/dashboard-core.js",
+    "ai-usage-dashboard/dashboard.js",
+    "ai-usage-dashboard/data/",
+    "ai-usage-dashboard/data/latest.json",
+    "ai-usage-dashboard/data/snapshots/",
+    "ai-usage-dashboard/data/snapshots/usage-fixture.js",
+    "ai-usage-dashboard/index.html",
+    "ai-usage-dashboard/serve.js",
+    "ai-usage-dashboard/vendor/",
+    "ai-usage-dashboard/vendor/THIRD_PARTY_LICENSES.md",
+    "ai-usage-dashboard/vendor/chart.umd.min.js",
+    "ai-usage-dashboard/vendor/chartjs-adapter-date-fns.bundle.min.js",
   ].sort());
 
   const packagedHtml = await readFile(path.join(result.packageDir, "index.html"), "utf8");

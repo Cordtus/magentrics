@@ -22,10 +22,10 @@ Data stays local under `data/`:
 
 ## Setup
 
-Install [Bun](https://bun.sh), then:
+Node.js 18 or newer is required (the scripts use native `fetch` and the built-in test runner). Install the pinned [`ccusage`](https://www.npmjs.com/package/ccusage) dependency with either package manager:
 
 ```bash
-bun install
+npm install     # or: bun install
 ```
 
 ## Generate and view
@@ -39,7 +39,9 @@ bun run refresh opencode
 bun run refresh combined   # all providers in one snapshot, one source each
 ```
 
-`combined` runs every provider and publishes a single snapshot with a source per provider (skipping any that returns no usage), so the dashboard shows Codex, Claude, and OpenCode side by side with a combined total.
+`combined` runs every provider and publishes a single snapshot with a source per provider (skipping any that returns no usage or is not installed), so the dashboard shows Codex, Claude, and OpenCode side by side with a combined total.
+
+`npm run refresh -- codex` is equivalent to `bun run refresh codex`; running `node scripts/refresh.js codex` directly also works, but only if `ccusage` is on your `PATH` (the package managers add `node_modules/.bin` for you).
 
 To look at the result, serve the folder and open the URL it prints:
 
@@ -66,7 +68,7 @@ Then open the dashboard, choose **Add Your Usage**, and select the file. The bro
 
 `data/usage-sources.json` points refresh at your export. It needs a `personalUserId` matching the single entry in `users`, which needs an `id`, `name`, and `file`; refresh rewrites that `file` after each run.
 
-Run refresh through `bun run` (not plain `node`) so the pinned `ccusage` binary is on `PATH`. The generated files under `data/` expose usage dates, totals, costs, and model names — treat them as private and never commit or publish them.
+Run refresh through a package-manager script (`bun run` / `npm run`) so the pinned `ccusage` binary is on `PATH`. The generated files under `data/` expose usage dates, totals, costs, and model names — treat them as private and never commit or publish them.
 
 ## Schedule it (systemd)
 
@@ -113,7 +115,7 @@ Fill in the absolute `node` path (`command -v node`) and the checkout root. If `
 bun run share:build
 ```
 
-This writes `dist/codex-usage-dashboard/` and a ZIP from the newest local snapshot. Recipients extract it and run the included `node serve.js` (ES modules cannot load from `file://`); no install or internet needed. The package omits raw JSON but embeds the same sensitive usage data, so share it deliberately.
+This writes `dist/ai-usage-dashboard/` and a ZIP from the newest local snapshot. Recipients extract it and run the included `node serve.js` (ES modules cannot load from `file://`); no install or internet needed. The package omits raw JSON but embeds the same sensitive usage data, so share it deliberately.
 
 ## Development
 
