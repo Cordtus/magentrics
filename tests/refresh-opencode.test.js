@@ -197,6 +197,24 @@ test("withOpenCodeServer starts a temporary server and stops it afterwards", asy
   assert.equal(child.signalCode, "SIGTERM");
 });
 
+test("withOpenCodeServer reports a clear error when the opencode binary is missing", async (t) => {
+  const { withOpenCodeServer } = await import(publisherUrl);
+  const child = fakeChild();
+  const spawn = () => {
+    queueMicrotask(() => child.emit("error", new Error("spawn opencode ENOENT")));
+    return child;
+  };
+
+  await assert.rejects(
+    withOpenCodeServer(
+      { fetchImpl: async () => { throw new Error("unreachable"); }, spawn, readyTimeoutMs: 50 },
+      async () => "done",
+    ),
+    /cannot start the opencode server .*ENOENT/,
+  );
+  assert.equal(child.killed, true);
+});
+
 test("withOpenCodeServer refuses to start a server for a remote address", async (t) => {
   const { withOpenCodeServer } = await import(publisherUrl);
   let spawned = 0;

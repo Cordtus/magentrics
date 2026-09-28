@@ -181,8 +181,15 @@ async function main() {
   }
 
   if ((options.provider === "opencode" || options.provider === "combined") && looping) {
-    openCodeServer = await ensureOpenCodeServer(options);
-    if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
+    try {
+      openCodeServer = await ensureOpenCodeServer(options);
+      if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
+    } catch (error) {
+      // Don't abort a combined run just because opencode is unavailable; the
+      // per-provider refresh will skip it (and report the reason).
+      console.warn(`OpenCode unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      openCodeServer = null;
+    }
   }
 
   const runOnce = () => refreshOnce({
