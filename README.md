@@ -120,7 +120,7 @@ This writes `dist/ai-usage-dashboard/` and a ZIP from the newest local snapshot.
 ## Development
 
 ```bash
-bun run test
+bun run test    # or: npm test
 ```
 
 - `index.html`, `dashboard.js`: browser shell, controls, and rendering.
