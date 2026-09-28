@@ -28,9 +28,20 @@ function isObject(value) {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isCcusageExport(raw) {
+	if (!isObject(raw) || !Array.isArray(raw.daily)) return false;
+	if (raw.daily.some((day) => isObject(day) && Array.isArray(day.modelBreakdowns))) return true;
+	// ccusage emits an empty export whose totals omit the canonical fields (it
+	// uses totalCost and has no reasoningOutputTokens) when the provider has no
+	// usage yet; normalize that too so a fresh install is not rejected as invalid.
+	return raw.daily.length === 0
+		&& isObject(raw.totals)
+		&& (!('costUSD' in raw.totals)
+			|| !TOKEN_FIELDS.every((field) => field in raw.totals));
+}
+
 function normalizeExport(raw) {
-	if (!isObject(raw) || !Array.isArray(raw.daily)) return raw;
-	if (!raw.daily.some((day) => Array.isArray(day && day.modelBreakdowns))) return raw;
+	if (!isCcusageExport(raw)) return raw;
 
 	const daily = raw.daily.map((day) => {
 		const models = Object.fromEntries(day.modelBreakdowns.map((model) => {

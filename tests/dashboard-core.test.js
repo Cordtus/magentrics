@@ -400,6 +400,25 @@ test('normalizes ccusage provider daily exports before visualization', () => {
 	assert.equal(result.models[0].model, 'model-a');
 });
 
+test('accepts the empty export ccusage emits when a provider has no usage', () => {
+	const result = buildDashboardData({
+		daily: [],
+		totals: {
+			cacheCreationTokens: 0,
+			cacheReadTokens: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalCost: -0,
+			totalTokens: 0,
+		},
+	});
+
+	assert.equal(result.daily.length, 0);
+	assert.equal(result.summary.totalTokens, 0);
+	assert.equal(result.summary.costUSD, 0);
+	assert.equal(result.summary.dateStart, null);
+});
+
 test('builds named user views and a date-union account total without collapsing fallback model-days', () => {
 	const myself = canonicalExport();
 	const mariusDay = clone(myself.daily[2]);
