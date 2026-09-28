@@ -197,13 +197,14 @@ test("withOpenCodeServer starts a temporary server and stops it afterwards", asy
   assert.equal(child.signalCode, "SIGTERM");
 });
 
-test("withOpenCodeServer reports a clear error when the opencode binary is missing", async (t) => {
+test("withOpenCodeServer reports a clear error when the opencode binary is missing", async () => {
   const { withOpenCodeServer } = await import(publisherUrl);
   const child = fakeChild();
   const spawn = () => {
     queueMicrotask(() => child.emit("error", new Error("spawn opencode ENOENT")));
     return child;
   };
+  const startedAt = Date.now();
 
   await assert.rejects(
     withOpenCodeServer(
@@ -212,7 +213,8 @@ test("withOpenCodeServer reports a clear error when the opencode binary is missi
     ),
     /cannot start the opencode server .*ENOENT/,
   );
-  assert.equal(child.killed, true);
+  assert.equal(child.killed, false, "must not try to kill a process that never spawned");
+  assert.ok(Date.now() - startedAt < 1_000, "must fail fast instead of waiting for a timeout");
 });
 
 test("withOpenCodeServer refuses to start a server for a remote address", async (t) => {

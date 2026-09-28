@@ -100,6 +100,8 @@ export async function ensureOpenCodeServer(options = {}) {
 
   const stop = async () => {
     if (child.exitCode !== null || child.signalCode) return;
+    // A failed spawn never launched a process and emits no "exit"; nothing to stop.
+    if (spawnError) return;
     child.kill("SIGTERM");
     await Promise.race([
       new Promise((resolve) => child.once("exit", resolve)),

@@ -185,8 +185,8 @@ async function main() {
       openCodeServer = await ensureOpenCodeServer(options);
       if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
     } catch (error) {
-      // Don't abort a combined run just because opencode is unavailable; the
-      // per-provider refresh will skip it (and report the reason).
+      // Don't abort up front: a combined run skips opencode and reports why,
+      // and an opencode-only run reports the same error on its first refresh.
       console.warn(`OpenCode unavailable: ${error instanceof Error ? error.message : String(error)}`);
       openCodeServer = null;
     }
