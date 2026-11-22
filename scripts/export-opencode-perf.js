@@ -6,12 +6,11 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runSqliteJson } from "./export-opencode.js";
+import { DEFAULT_DB_PATH, localDayKey, runSqliteJson } from "./export-opencode.js";
 import { writeAtomically } from "./snapshot.js";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const defaultOutput = path.resolve(scriptDirectory, "..", "data", "opencode-perf.json");
-const defaultDb = path.join(process.env.HOME ?? "", ".local", "share", "opencode", "opencode.db");
 
 const USAGE = `Usage: node scripts/export-opencode-perf.js [options]
 
@@ -44,13 +43,6 @@ function parseArgs(args) {
     throw new Error(`Unknown option: ${arg}\n${USAGE}`);
   }
   return options;
-}
-
-function localDayKey(ms) {
-  const date = new Date(ms);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function percentile(values, fraction) {
@@ -234,7 +226,7 @@ export function buildPerformance(dbPath, days) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const dbPath = options.db ?? defaultDb;
+  const dbPath = options.db ?? DEFAULT_DB_PATH;
   const outputPath = path.resolve(options.output ?? defaultOutput);
   const report = buildPerformance(dbPath, options.days);
   await writeAtomically(outputPath, `${JSON.stringify(report, null, 2)}\n`);

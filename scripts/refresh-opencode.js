@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_BASE_URL, fetchOpenCodeUsage, fetchOpenCodeUsageFromDb, OpenCodeApiError } from "./export-opencode.js";
+import { DEFAULT_BASE_URL, DEFAULT_DB_PATH, fetchOpenCodeUsage, fetchOpenCodeUsageFromDb, OpenCodeApiError } from "./export-opencode.js";
 import { buildPerformance } from "./export-opencode-perf.js";
 import { publishSnapshot } from "./refresh-ccusage.js";
 import { writeAtomically } from "./snapshot.js";
@@ -26,9 +26,13 @@ only) it starts a temporary one and stops it when finished; an already-running
 server is left untouched.
 
 Options:
+  --db <path>           Read the local database instead of the server
   --base-url <url>      Server base URL (default: $OPENCODE_BASE_URL)
   --directory <path>    Only include sessions from this project directory
   --cache <path>        Cache file (default: data/${DEFAULT_CACHE_FILENAME})
+  --skip-unchanged      Do not republish an identical snapshot
+  --quiet               Suppress progress output
+  --days <n>            Performance window in days (default: 30)
   --help                Show this help
 `;
 
@@ -40,10 +44,19 @@ function parseArgs(args) {
       process.stdout.write(USAGE);
       process.exit(0);
     }
-    if (arg === "--base-url" || arg === "--directory" || arg === "--cache") {
+    if (arg === "--quiet") {
+      options.quiet = true;
+      continue;
+    }
+    if (arg === "--skip-unchanged") {
+      options.skipUnchanged = true;
+      continue;
+    }
+    if (arg === "--db" || arg === "--base-url" || arg === "--directory" || arg === "--cache" || arg === "--days") {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${arg} requires a value`);
-      options[arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = value;
+      const key = arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      options[key] = arg === "--days" ? Number(value) : value;
       index += 1;
       continue;
     }
@@ -293,14 +306,7 @@ function progressReporter() {
 }
 
 export async function runOpenCodeRefresh(options = {}) {
-  const defaultDbPath = path.join(
-    process.env.HOME ?? "",
-    ".local",
-    "share",
-    "opencode",
-    "opencode.db",
-  );
-  const dbPath = options.dbPath ?? defaultDbPath;
+  const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
   const run = (baseUrl) => refreshOpenCodeUsage({
     ...options,
     baseUrl,

@@ -11,6 +11,13 @@ import * as dashboardCore from "../dashboard-core.js";
 import { writeAtomically } from "./snapshot.js";
 
 export const DEFAULT_BASE_URL = "http://127.0.0.1:4096";
+export const DEFAULT_DB_PATH = path.join(
+  process.env.HOME ?? "",
+  ".local",
+  "share",
+  "opencode",
+  "opencode.db",
+);
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export class OpenCodeApiError extends Error {
@@ -495,13 +502,7 @@ function readSignatures(dbPath) {
 }
 
 export function fetchOpenCodeUsageFromDb(options = {}) {
-  const dbPath = options.dbPath || path.join(
-    process.env.HOME ?? "",
-    ".local",
-    "share",
-    "opencode",
-    "opencode.db",
-  );
+  const dbPath = options.dbPath || DEFAULT_DB_PATH;
   const dayKey = options.dayKey || localDayKey;
   const previous = options.cache && options.cache.version === 3
     && options.cache.sessions && typeof options.cache.sessions === "object"
