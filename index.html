@@ -101,6 +101,12 @@
       border-bottom: 1px solid var(--rule-strong);
     }
 
+    /* The fixed range/source panel can grow past the header when many agents
+       are present; reserve space so it never covers the launcher button. */
+    body:has(.range-panel:not([hidden])) .topbar {
+      min-height: 13.5rem;
+    }
+
     h1,
     h2,
     p,
@@ -194,7 +200,30 @@
       display: flex;
       align-items: center;
       justify-content: flex-end;
+      gap: 0.6rem;
       padding-bottom: 0.2rem;
+    }
+
+    .refresh-button {
+      min-height: 2.75rem;
+      padding: 0.65rem 0.9rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0.3rem;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.015em;
+    }
+
+    .refresh-button:hover {
+      background: var(--surface-hover);
+    }
+
+    .refresh-button:disabled {
+      cursor: wait;
+      opacity: 0.6;
     }
 
     .launcher-button,
@@ -491,6 +520,11 @@
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
       margin: 0;
+    }
+
+    .perf-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 1.2rem;
     }
 
     .metric {
@@ -875,6 +909,15 @@
         width: 100%;
       }
 
+      .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .refresh-button {
+        width: 100%;
+      }
+
       .launcher-grid {
         grid-template-columns: 1fr;
       }
@@ -915,6 +958,8 @@
 
       .toggle-group {
         justify-self: start;
+        flex-wrap: wrap;
+        max-width: 100%;
       }
 
       .chart-frame,
@@ -934,6 +979,29 @@
       td {
         padding-right: 0.65rem;
         padding-left: 0.65rem;
+      }
+
+      .range-panel {
+        position: static;
+        margin: 0 0 1.25rem;
+        align-items: stretch;
+        box-shadow: none;
+      }
+
+      .range-row {
+        flex-wrap: wrap;
+      }
+
+      .range-field {
+        flex: 1 1 8rem;
+      }
+
+      .range-field input {
+        width: 100%;
+      }
+
+      body:has(.range-panel:not([hidden])) .topbar {
+        min-height: 0;
       }
     }
 
@@ -960,6 +1028,7 @@
         <h1>AI Usage</h1>
       </div>
       <div class="header-actions">
+        <button class="refresh-button" id="refresh-data" type="button" title="Re-read local usage data">Refresh data</button>
         <button class="launcher-button" id="launcher-button" type="button" title="Add your usage data">Add Your Usage</button>
       </div>
     </header>
@@ -1005,10 +1074,10 @@
           <section class="launcher-card launcher-card-wide">
             <div>
               <strong>Generating the JSON file</strong>
-              <p>Run this command in a terminal. It creates <code>aiusage.json</code> in that terminal's current directory. Upload the file using the button above.</p>
+              <p>Run this command from the dashboard checkout. It creates <code>aiusage.json</code> in that terminal's current directory. Upload the file using the button above.</p>
             </div>
             <div class="launcher-command-row">
-            <pre class="launcher-command" id="generate-command">npx ccusage opencode daily --json &gt; aiusage.json &amp;&amp; pwd</pre>
+            <pre class="launcher-command" id="generate-command">bun run export:opencode --output aiusage.json &amp;&amp; pwd</pre>
               <button class="copy-button" type="button" data-copy-target="generate-command" aria-label="Copy generation command" title="Copy command">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1.5"></rect><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"></path></svg>
               </button>
@@ -1048,6 +1117,34 @@
           </label>
         </div>
         <dl class="summary-grid" id="summary-grid"></dl>
+      </section>
+
+      <section class="dashboard-section" id="perf-section" aria-labelledby="perf-heading" hidden>
+        <div class="section-heading">
+          <div>
+            <h2 id="perf-heading">Agent performance</h2>
+            <p class="section-description">OpenCode turn latency by context size. Generated from the local session database.</p>
+          </div>
+        </div>
+        <dl class="summary-grid perf-grid" id="perf-cards"></dl>
+        <details class="chart-data-disclosure">
+          <summary>Latency by context</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Turn latency by context size">
+            <table id="perf-context-table">
+              <caption class="visually-hidden">Average model and overhead seconds per turn by prompt size</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Context</th>
+                  <th scope="col">Turns</th>
+                  <th scope="col">Model</th>
+                  <th scope="col">Overhead</th>
+                  <th scope="col">Avg context</th>
+                </tr>
+              </thead>
+              <tbody id="perf-context-body"></tbody>
+            </table>
+          </div>
+        </details>
       </section>
 
       <section class="dashboard-section" id="user-comparison-section" aria-labelledby="user-comparison-heading" hidden>

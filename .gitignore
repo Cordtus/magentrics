@@ -18,3 +18,5 @@ usage-data.js
 /usage-sources.json
 /marius.json
 .vercel
+data/opencode-perf.json
+data/opencode-db-cache.json

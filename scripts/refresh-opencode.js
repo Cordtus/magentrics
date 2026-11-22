@@ -3,11 +3,13 @@
 // OpenCode provider: collects per-agent usage from the local server and publishes a snapshot.
 
 import { spawn as spawnProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_BASE_URL, fetchOpenCodeUsage } from "./export-opencode.js";
+import { DEFAULT_BASE_URL, fetchOpenCodeUsage, fetchOpenCodeUsageFromDb, OpenCodeApiError } from "./export-opencode.js";
+import { buildPerformance } from "./export-opencode-perf.js";
 import { publishSnapshot } from "./refresh-ccusage.js";
 import { writeAtomically } from "./snapshot.js";
 
@@ -82,7 +84,7 @@ export async function ensureOpenCodeServer(options = {}) {
     return { baseUrl, started: false, stop: async () => {} };
   }
   if (options.startServer === false || !isLoopback(baseUrl)) {
-    throw new Error(`Cannot reach the opencode server at ${baseUrl}; start it with "opencode serve"`);
+    throw new OpenCodeApiError(`Cannot reach the opencode server at ${baseUrl}; start it with "opencode serve"`);
   }
 
   const { hostname, port } = new URL(baseUrl);
@@ -114,13 +116,13 @@ export async function ensureOpenCodeServer(options = {}) {
     const deadline = Date.now() + (options.readyTimeoutMs || READY_TIMEOUT_MS);
     while (!(await serverResponds(baseUrl, fetchImpl))) {
       if (spawnError) {
-        throw new Error(`cannot start the opencode server (${spawnError.message}); install opencode or start it with "opencode serve"`);
+        throw new OpenCodeApiError(`cannot start the opencode server (${spawnError.message}); install opencode or start it with "opencode serve"`);
       }
       if (child.exitCode !== null) {
-        throw new Error(`opencode server exited before becoming ready (code ${child.exitCode})`);
+        throw new OpenCodeApiError(`opencode server exited before becoming ready (code ${child.exitCode})`);
       }
       if (Date.now() >= deadline) {
-        throw new Error(`opencode server did not become ready at ${baseUrl} in time`);
+        throw new OpenCodeApiError(`opencode server did not become ready at ${baseUrl} in time`);
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
@@ -184,6 +186,30 @@ async function readCache(cachePath, fileOperations) {
 
 export async function collectOpenCodeUsage(options = {}) {
   const projectRoot = path.resolve(options.projectRoot || defaultProjectRoot);
+  if (options.dbPath) {
+    const dataRoot = path.resolve(options.dataRoot || path.join(projectRoot, "data"));
+    const fileOperations = { readFile, ...(options.fileOperations || {}) };
+    const cachePath = path.resolve(
+      options.dbCachePath || path.join(dataRoot, "opencode-db-cache.json"),
+    );
+    const cache = options.dbCache || await readCache(cachePath, fileOperations);
+    const result = fetchOpenCodeUsageFromDb({
+      dbPath: options.dbPath,
+      dayKey: options.dayKey,
+      cache,
+    });
+    if (options.writeCache !== false) {
+      await writeAtomically(cachePath, `${JSON.stringify(result.cache)}\n`, fileOperations);
+    }
+    return {
+      ...result,
+      cachePath,
+      dataRoot,
+      dbPath: options.dbPath,
+      fileOperations,
+      projectRoot,
+    };
+  }
   const dataRoot = path.resolve(options.dataRoot || path.join(projectRoot, "data"));
   const cachePath = path.resolve(
     options.cachePath || path.join(dataRoot, DEFAULT_CACHE_FILENAME),
@@ -203,7 +229,7 @@ export async function collectOpenCodeUsage(options = {}) {
     onProgress: options.onProgress,
   });
 
-  if (options.writeCache !== false) {
+  if (options.writeCache !== false && !options.dbPath) {
     await writeAtomically(cachePath, `${JSON.stringify(result.cache)}\n`, fileOperations);
   }
   return { ...result, cachePath, dataRoot, fileOperations, projectRoot };
@@ -212,6 +238,19 @@ export async function collectOpenCodeUsage(options = {}) {
 export async function refreshOpenCodeUsage(options = {}) {
   const collected = await collectOpenCodeUsage(options);
   const { cachePath, dataRoot, fileOperations, projectRoot } = collected;
+  if (collected.sessions === 0) {
+    let previous = null;
+    try {
+      previous = JSON.parse(
+        await fileOperations.readFile(path.join(dataRoot, "latest-data.json"), "utf8"),
+      );
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+    }
+    if (previous?.users?.some((user) => user.data?.daily?.length)) {
+      throw new Error("No OpenCode sessions found; keeping the previous snapshot");
+    }
+  }
   const sources = agentSources(collected.agents, collected.usage);
   const stats = {
     agents: sources.map(({ id, name }) => ({ id, name })),
@@ -254,6 +293,14 @@ function progressReporter() {
 }
 
 export async function runOpenCodeRefresh(options = {}) {
+  const defaultDbPath = path.join(
+    process.env.HOME ?? "",
+    ".local",
+    "share",
+    "opencode",
+    "opencode.db",
+  );
+  const dbPath = options.dbPath ?? defaultDbPath;
   const run = (baseUrl) => refreshOpenCodeUsage({
     ...options,
     baseUrl,
@@ -262,12 +309,41 @@ export async function runOpenCodeRefresh(options = {}) {
 
   let started = false;
   let result;
-  if (options.server) {
-    result = await run(options.server.baseUrl);
-  } else {
-    const outcome = await withOpenCodeServer(options, run);
-    started = outcome.started;
-    result = outcome.value;
+  try {
+    if (options.server) {
+      result = await run(options.server.baseUrl);
+    } else {
+      const outcome = await withOpenCodeServer(options, run);
+      started = outcome.started;
+      result = outcome.value;
+    }
+  } catch (error) {
+    if (!(error instanceof OpenCodeApiError) || !existsSync(dbPath)) throw error;
+    if (!options.quiet) {
+      console.warn(`OpenCode API unavailable (${error.message}); reading ${dbPath} directly.`);
+    }
+    result = await refreshOpenCodeUsage({ ...options, baseUrl: undefined, dbPath });
+  }
+
+  try {
+    const dataRoot = options.dataRoot ?? path.join(defaultProjectRoot, "data");
+    const dbPath = options.dbPath ?? path.join(
+      process.env.HOME ?? "",
+      ".local",
+      "share",
+      "opencode",
+      "opencode.db",
+    );
+    const report = buildPerformance(dbPath, options.days ?? 30);
+    await writeAtomically(
+      path.join(dataRoot, "opencode-perf.json"),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+  } catch (error) {
+    if (!options.quiet) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`Performance export skipped: ${reason}`);
+    }
   }
 
   if (!options.quiet) {

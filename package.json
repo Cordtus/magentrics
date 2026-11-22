@@ -14,7 +14,8 @@
     "refresh": "node scripts/refresh.js",
     "export:opencode": "node scripts/export-opencode.js",
     "share:build": "node scripts/build-share.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "export:opencode-perf": "node scripts/export-opencode-perf.js"
   },
   "devDependencies": {
     "ccusage": "^20.0.20"

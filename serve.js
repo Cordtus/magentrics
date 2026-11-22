@@ -1,8 +1,14 @@
 // Loopback-only static server for the dashboard.
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
 
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -36,11 +42,105 @@ function resolveRequestPath(root, requestUrl) {
     : null;
 }
 
-export function createStaticServer({ root }) {
+function isLoopbackOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1");
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function runRefresh(root) {
+  const dbPath = process.env.OPENCODE_DB
+    || path.join(os.homedir(), ".local", "share", "opencode", "opencode.db");
+  await execFileAsync(
+    process.execPath,
+    [
+      path.join(root, "scripts", "refresh.js"),
+      "opencode",
+      "--db",
+      dbPath,
+      "--skip-unchanged",
+      "--quiet",
+    ],
+    { cwd: root, timeout: 120_000 },
+  );
+  try {
+    return JSON.parse(await readFile(path.join(root, "data", "latest.json"), "utf8"));
+  } catch (_error) {
+    return {};
+  }
+}
+
+export function createStaticServer({ root, refresh } = {}) {
   const resolvedRoot = path.resolve(root);
+  let refreshing = false;
 
   return http.createServer(async (request, response) => {
     const method = request.method || "GET";
+    const url = new URL(request.url || "/", "http://127.0.0.1");
+
+    if (url.pathname === "/api/refresh") {
+      if (method === "GET" || method === "HEAD") {
+        send(response, method, 200, JSON.stringify({ available: Boolean(refresh) }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+        return;
+      }
+      if (method !== "POST") {
+        send(response, method, 405, "Method not allowed\n", {
+          Allow: "GET, HEAD, POST",
+          "Content-Type": "text/plain; charset=utf-8",
+        });
+        return;
+      }
+      request.resume();
+      const origin = request.headers.origin;
+      if (origin && !isLoopbackOrigin(origin)) {
+        send(response, method, 403, JSON.stringify({ ok: false, error: "Origin not allowed" }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+        return;
+      }
+      if (!refresh) {
+        send(response, method, 501, JSON.stringify({ ok: false, error: "Refresh is not configured" }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+        return;
+      }
+      if (refreshing) {
+        send(response, method, 409, JSON.stringify({ ok: false, error: "Refresh already running" }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+        return;
+      }
+      refreshing = true;
+      try {
+        const result = await refresh();
+        send(response, method, 200, JSON.stringify({ ok: true, ...result }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+      } catch (error) {
+        send(response, method, 500, JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }), {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        });
+      } finally {
+        refreshing = false;
+      }
+      return;
+    }
+
     if (method !== "GET" && method !== "HEAD") {
       send(response, method, 405, "Method not allowed\n", {
         Allow: "GET, HEAD",
@@ -82,9 +182,13 @@ export function createStaticServer({ root }) {
   });
 }
 
-export async function startStaticServer({ root, port = 8765 } = {}) {
+export async function startStaticServer({ root, port = 8765, refresh } = {}) {
   const serverRoot = root || path.dirname(fileURLToPath(import.meta.url));
-  const server = createStaticServer({ root: serverRoot });
+  const supportsRefresh = existsSync(path.join(serverRoot, "scripts", "refresh.js"));
+  const server = createStaticServer({
+    root: serverRoot,
+    refresh: refresh ?? (supportsRefresh ? () => runRefresh(serverRoot) : null),
+  });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", resolve);

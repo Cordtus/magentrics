@@ -1385,6 +1385,86 @@ const bundledData = await loadBundledSnapshot();
     window.setInterval(refresh, 30000);
   }
 
+  async function loadPerformance() {
+    try {
+      const response = await fetch(`data/opencode-perf.json?ts=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const report = await response.json();
+      const totals = report?.totals;
+      if (!totals || !totals.turns) return;
+      const section = document.getElementById("perf-section");
+      const cards = document.getElementById("perf-cards");
+      const body = document.getElementById("perf-context-body");
+      if (!section || !cards || !body) return;
+      const number = new Intl.NumberFormat();
+      const hours = (seconds) => `${Math.round(seconds / 3600)}h`;
+      const metrics = [
+        ["Avg turn", `${totals.avgTurnSeconds}s`, `${totals.p95TurnSeconds}s p95`],
+        ["Model / overhead", `${hours(totals.modelSeconds)} / ${hours(totals.overheadSeconds)}`, `last ${report.sinceDays} days`],
+        ["Avg context", `${number.format(Math.round(totals.avgContext / 1000))}k`, `${totals.avgTurnsPerRequest} turns per request`],
+        ["TTFT / speed", `${totals.avgTtftSeconds}s`, `${number.format(totals.avgTokensPerSecond)} tok/s`],
+      ];
+      cards.innerHTML = metrics
+        .map(
+          ([label, value, note]) =>
+            `<div class="metric"><dt>${label}</dt><dd><span class="metric-value">${value}</span><small>${note}</small></dd></div>`,
+        )
+        .join("");
+      body.innerHTML = report.byContext
+        .filter((bucket) => bucket.turns)
+        .map(
+          (bucket) =>
+            `<tr><td>${bucket.bucket}</td><td>${number.format(bucket.turns)}</td><td>${bucket.avgModelSeconds}s</td><td>${bucket.avgOverheadSeconds}s</td><td>${number.format(Math.round(bucket.avgContext / 1000))}k</td></tr>`,
+        )
+        .join("");
+      section.hidden = false;
+    } catch (_error) {
+      // Performance data is optional; the rest of the dashboard still renders.
+    }
+  }
+
+  async function requestRefresh() {
+    const button = document.getElementById("refresh-data");
+    if (!button || button.disabled) return;
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Refreshing...";
+    try {
+      const response = await fetch("/api/refresh", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      window.location.reload();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = label;
+      showError(
+        "Refresh failed",
+        error instanceof Error ? error.message : String(error),
+        true,
+      );
+    }
+  }
+
+  async function setupRefreshButton() {
+    const button = document.getElementById("refresh-data");
+    if (!button) return;
+    try {
+      const response = await fetch("/api/refresh", { headers: { Accept: "application/json" } });
+      const status = response.ok ? await response.json() : null;
+      if (!status?.available) {
+        button.hidden = true;
+        return;
+      }
+    } catch (_error) {
+      button.hidden = true;
+      return;
+    }
+    button.addEventListener("click", requestRefresh);
+  }
+
   function initialize() {
     setupToggles();
     setupDetailSelector();
@@ -1392,6 +1472,8 @@ const bundledData = await loadBundledSnapshot();
     setupRangeSelector();
     setupFileLoading();
     setupLiveReload();
+    loadPerformance();
+    setupRefreshButton();
     elements.dismissError.addEventListener("click", clearError);
 
     if (bundledData) {

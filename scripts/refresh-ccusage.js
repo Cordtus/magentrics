@@ -251,16 +251,18 @@ export async function publishSnapshot(sources, options = {}) {
   const snapshotPath = await nextAvailablePath(snapshotDirectory, snapshotFilename, fileOperations);
   await writeAtomically(snapshotPath, serializeSnapshot(snapshotData), fileOperations);
 
-  await publishJson(latestJsonPath, {
-    generatedAt: now.toISOString(),
-    snapshot: `snapshots/${path.basename(snapshotPath)}`,
-  }, fileOperations);
   await publishJson(latestDataPath, snapshotData, fileOperations);
   await writeAtomically(
     latestLoaderPath,
     makeLatestLoader(path.basename(snapshotPath)),
     fileOperations,
   );
+  // Publish the pointer last: ?live=1 polls it, so it must never advertise
+  // data that the other pointers have not caught up with.
+  await publishJson(latestJsonPath, {
+    generatedAt: now.toISOString(),
+    snapshot: `snapshots/${path.basename(snapshotPath)}`,
+  }, fileOperations);
 
   return {
     latestDataPath,

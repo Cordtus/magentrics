@@ -35,8 +35,11 @@ Modes (combine freely; default is update data once and exit):
 Mode options:
   --interval <s> Refresh interval for --watch (default: ${DEFAULT_INTERVAL_SECONDS})
   --port <n>     Dashboard port for --serve (default: ${DEFAULT_PORT})
+  --skip-unchanged  Do not republish an identical snapshot
+  --quiet        Only print refresh results, not progress
 
 OpenCode options:
+  --db <path>           Read the local database instead of the server
   --base-url <url>      Server base URL (default: $OPENCODE_BASE_URL)
   --directory <path>    Only include sessions from this project directory
   --cache <path>        Cache file (default: data/opencode-cache.json)
@@ -74,6 +77,14 @@ export function parseArgs(args) {
       options.watch = true;
       continue;
     }
+    if (arg === "--skip-unchanged") {
+      options.skipUnchanged = true;
+      continue;
+    }
+    if (arg === "--quiet") {
+      options.quiet = true;
+      continue;
+    }
     if (!arg.startsWith("-")) {
       if (!PROVIDERS.includes(arg)) throw new Error(`Unknown provider: ${arg}\n${USAGE}`);
       selectProvider(arg);
@@ -90,7 +101,7 @@ export function parseArgs(args) {
       index += 1;
       continue;
     }
-    if (arg === "--base-url" || arg === "--directory" || arg === "--cache") {
+    if (arg === "--db" || arg === "--base-url" || arg === "--directory" || arg === "--cache") {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${arg} requires a value`);
       options[arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = value;
@@ -159,7 +170,8 @@ async function main() {
   let staticServer = null;
   let refreshTimer = null;
   let openCodeServer = null;
-  let busy = false;
+  let refreshPromise = null;
+  let runExclusive = null;
 
   const shutdown = () => {
     if (refreshTimer) clearInterval(refreshTimer);
@@ -175,12 +187,21 @@ async function main() {
   // Start serving first so the URL is printed immediately; the first refresh can
   // take a while, and ?live=1 picks up its snapshot when it lands.
   if (options.serve) {
-    ({ server: staticServer } = await startStaticServer({ port: options.port }));
+    ({ server: staticServer } = await startStaticServer({
+      port: options.port,
+      // Run the button's refresh in this process with the same provider and
+      // options as the loop, so it cannot replace a combined snapshot with an
+      // OpenCode-only one or bypass the in-flight guard.
+      refresh: () => {
+        if (!runExclusive) throw new Error("Refresh is still starting");
+        return runExclusive();
+      },
+    }));
     const { port } = staticServer.address();
     console.log(`Dashboard: http://127.0.0.1:${port}/${options.watch ? "?live=1" : ""}`);
   }
 
-  if ((options.provider === "opencode" || options.provider === "combined") && looping) {
+  if ((options.provider === "opencode" || options.provider === "combined") && looping && !options.dbPath) {
     try {
       openCodeServer = await ensureOpenCodeServer(options);
       if (openCodeServer.started) console.log(`Started a temporary opencode server at ${openCodeServer.baseUrl}.`);
@@ -195,11 +216,19 @@ async function main() {
   const runOnce = () => refreshOnce({
     ...options,
     server: openCodeServer,
-    quiet: looping,
-    skipUnchanged: looping,
+    quiet: options.quiet || looping,
+    skipUnchanged: options.skipUnchanged || looping,
   });
 
-  const first = await runOnce();
+  runExclusive = () => {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = runOnce().finally(() => {
+      refreshPromise = null;
+    });
+    return refreshPromise;
+  };
+
+  const first = await runExclusive();
   if (!looping) return;
   console.log(`[${clock()}] ${summarize(options, first)}`);
 
@@ -207,15 +236,11 @@ async function main() {
     const intervalSeconds = options.interval || DEFAULT_INTERVAL_SECONDS;
     console.log(`Refreshing every ${intervalSeconds}s; press Ctrl-C to stop.`);
     refreshTimer = setInterval(async () => {
-      if (busy) return;
-      busy = true;
       try {
-        const result = await runOnce();
+        const result = await runExclusive();
         console.log(`[${clock()}] ${summarize(options, result)}`);
       } catch (error) {
         console.error(`[${clock()}] refresh failed: ${error instanceof Error ? error.message : String(error)}`);
-      } finally {
-        busy = false;
       }
     }, intervalSeconds * 1000);
   }

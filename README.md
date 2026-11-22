@@ -17,12 +17,13 @@ The dashboard is plain HTML/CSS/JS with no build step. It reads a usage JSON exp
 Data stays local under `data/`:
 
 - `refresh` fetches usage, validates it, and atomically publishes an immutable snapshot plus the `data/latest.*` pointers. Raw exports and snapshots are never overwritten.
-- `codex` and `claude` come from the pinned [`ccusage`](https://www.npmjs.com/package/ccusage) tool; `opencode` reads the local OpenCode server.
+- `codex` and `claude` come from the pinned [`ccusage`](https://www.npmjs.com/package/ccusage) tool; `opencode` reads `opencode.db` directly and caches per-session aggregates, so each run only re-reads sessions whose assistant-message signature changed.
 - `serve` serves the folder on loopback; `?live=1` polls for new snapshots every 30 seconds.
 
 ## Setup
 
-Node.js 18 or newer is required (the scripts use native `fetch` and the built-in test runner). Install the pinned [`ccusage`](https://www.npmjs.com/package/ccusage) dependency with either package manager:
+Node.js 18 or newer is required (the scripts use native `fetch` and the built-in test runner).
+The OpenCode provider also needs the `sqlite3` command-line tool on `PATH` (it reads `opencode.db` directly). Install the pinned [`ccusage`](https://www.npmjs.com/package/ccusage) dependency with either package manager:
 
 ```bash
 npm install     # or: bun install
@@ -38,6 +39,19 @@ bun run refresh claude
 bun run refresh opencode
 bun run refresh combined   # all providers in one snapshot, one source each
 ```
+
+## Agent performance
+
+Turn latency from the local OpenCode database, shown as an optional section on
+the dashboard:
+
+```bash
+bun run export:opencode-perf   # writes data/opencode-perf.json
+```
+
+Reports average turn time, p95, model vs. between-turn overhead, time to first
+token, tokens/second, context size, turns per request, and a latency breakdown
+by prompt size.
 
 `combined` runs every provider and publishes a single snapshot with a source per provider (skipping any that returns no usage or is not installed), so the dashboard shows Codex, Claude, and OpenCode side by side with a combined total.
 
@@ -59,8 +73,18 @@ The `opencode` provider starts a temporary server when none is running and stops
 Any canonical ccusage export works:
 
 ```bash
-npx ccusage codex daily --json > aiusage.json
+npx ccusage codex daily --json --offline > aiusage.json
 ```
+
+For OpenCode, use the bundled exporter. It reads `opencode.db` directly, so it
+works with the current (V2) schema and never waits on the server:
+
+```bash
+bun run export:opencode --output aiusage.json
+```
+
+`ccusage opencode` only understands the older local data and may hang while
+fetching pricing from LiteLLM; pass `--offline` if you use it.
 
 Then open the dashboard, choose **Add Your Usage**, and select the file. The browser validates it and keeps it only for the current page session.
 
@@ -68,44 +92,72 @@ Then open the dashboard, choose **Add Your Usage**, and select the file. The bro
 
 `data/usage-sources.json` points refresh at your export. It needs a `personalUserId` matching the single entry in `users`, which needs an `id`, `name`, and `file`; refresh rewrites that `file` after each run.
 
+`data/opencode-db-cache.json` stores one aggregate per session keyed by `max(time_updated)` and the assistant-message count. A run re-reads only sessions whose signature moved; delete the file to force a full rebuild. The first run after deletion is the slow one.
+
 Run refresh through a package-manager script (`bun run` / `npm run`) so the pinned `ccusage` binary is on `PATH`. The generated files under `data/` expose usage dates, totals, costs, and model names — treat them as private and never commit or publish them.
 
 ## Schedule it (systemd)
 
-`refresh opencode` starts its own server, so one service plus a timer is enough. Create `~/.config/systemd/user/opencode-usage.service`:
+Two user units keep it current: a static server and a daily timer. The refresh
+reads `opencode.db` directly, so it needs no OpenCode server and no network. The
+dashboard also has a **Refresh data** button that runs the same refresh on demand
+through `POST /api/refresh`.
+
+`~/.config/systemd/user/ai-usage-dashboard.service`:
 
 ```ini
 [Unit]
-Description=Refresh the local opencode usage snapshot
+Description=AI usage dashboard (loopback)
+After=network.target
 
+[Service]
+Type=simple
+WorkingDirectory=/absolute/path/to/this/checkout
+ExecStart=/absolute/path/to/node serve.js 8765
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+```
+
+`~/.config/systemd/user/ai-usage-refresh.service` and `.timer`:
+
+```ini
+# ai-usage-refresh.service
 [Service]
 Type=oneshot
 WorkingDirectory=/absolute/path/to/this/checkout
-ExecStart=/absolute/path/to/node scripts/refresh.js opencode
-```
+ExecStart=/absolute/path/to/node scripts/refresh.js opencode --db /absolute/path/to/opencode.db --skip-unchanged --quiet
+ExecStartPost=/usr/bin/find /absolute/path/to/this/checkout/data/snapshots -type f -mtime +90 -delete
+Nice=10
+IOSchedulingClass=idle
 
-and `~/.config/systemd/user/opencode-usage.timer`:
-
-```ini
-[Unit]
-Description=Refresh opencode usage every minute
-
+# ai-usage-refresh.timer
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
+OnCalendar=*-*-* 02:00:00 America/Denver
+Persistent=true
 
 [Install]
 WantedBy=timers.target
 ```
 
-Then enable and inspect it:
+Enable both:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now opencode-usage.timer
-systemctl --user list-timers opencode-usage.timer
-journalctl --user -u opencode-usage.service -f
+systemctl --user enable --now ai-usage-dashboard.service
+systemctl --user enable --now ai-usage-refresh.timer
+systemctl --user start ai-usage-refresh.service   # run once now
+systemctl --user list-timers ai-usage-refresh.timer
+journalctl --user -u ai-usage-refresh.service -f
 ```
+
+The dashboard polls `data/latest.json` every 30 seconds, so an open page picks
+up the nightly snapshot without a reload; the **Refresh data** button does an
+immediate run and reloads the page. Snapshots older than 90 days are deleted by
+the service.
+
 
 Fill in the absolute `node` path (`command -v node`) and the checkout root. If `opencode` is not on the service `PATH`, add `Environment=OPENCODE_BIN=/absolute/path/to/opencode`. Disable with `systemctl --user disable --now opencode-usage.timer`.
 

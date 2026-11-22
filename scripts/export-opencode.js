@@ -2,6 +2,7 @@
 
 // One-shot OpenCode export printer: writes the ccusage { daily, totals } shape to stdout.
 
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,14 @@ import { writeAtomically } from "./snapshot.js";
 
 export const DEFAULT_BASE_URL = "http://127.0.0.1:4096";
 const REQUEST_TIMEOUT_MS = 30_000;
+
+export class OpenCodeApiError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "OpenCodeApiError";
+    this.code = "OPENCODE_API";
+  }
+}
 
 const USAGE = `Usage: node scripts/export-opencode.js [options]
 
@@ -67,18 +76,18 @@ async function requestJson(url, fetchImpl, label) {
     response = await fetchImpl(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(
+    throw new OpenCodeApiError(
       `Cannot reach the opencode server at ${url} (${reason}); start it with "opencode serve"`,
     );
   }
   if (!response.ok) {
-    throw new Error(`${label} failed with HTTP ${response.status}`);
+    throw new OpenCodeApiError(`${label} failed with HTTP ${response.status}`);
   }
   try {
     return await response.json();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${label} could not be read (${reason})`);
+    throw new OpenCodeApiError(`${label} could not be read (${reason})`);
   }
 }
 
@@ -413,8 +422,17 @@ async function main() {
     reported = fetchedSessions;
     process.stderr.write(`Scanned ${done}/${total} sessions (${fetchedSessions} fetched)...\n`);
   };
-  const { agents, messages, reusedSessions, sessions, usage, cache: nextCache } =
-    await fetchOpenCodeUsage({ ...options, cache, onProgress });
+  let fetched;
+  let usedDb = false;
+  try {
+    fetched = await fetchOpenCodeUsage({ ...options, cache, onProgress });
+  } catch (error) {
+    if (!(error instanceof OpenCodeApiError)) throw error;
+    usedDb = true;
+    console.error(`OpenCode API unavailable (${error.message}); reading the local database instead.`);
+    fetched = fetchOpenCodeUsageFromDb({ dbPath: options.dbPath });
+  }
+  const { agents, messages, reusedSessions, sessions, usage, cache: nextCache } = fetched;
   const json = `${JSON.stringify(usage, null, 2)}\n`;
   if (options.output) {
     await writeAtomically(path.resolve(process.cwd(), options.output), json);
@@ -422,7 +440,7 @@ async function main() {
   } else {
     process.stdout.write(json);
   }
-  if (cachePath) {
+  if (cachePath && !usedDb) {
     await writeAtomically(cachePath, `${JSON.stringify(nextCache)}\n`);
   }
   const messageWord = messages === 1 ? "message" : "messages";
@@ -440,6 +458,141 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error(`Failed to fetch opencode usage: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
   });
+}
+
+export function runSqliteJson(dbPath, query, maxBuffer = 512 * 1024 * 1024) {
+  try {
+    return execFileSync("sqlite3", ["-json", dbPath, query], { encoding: "utf8", maxBuffer });
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw new Error(
+        "sqlite3 CLI not found; install sqlite3 (or run OpenCode on Node 22+ with node:sqlite)",
+      );
+    }
+    throw error;
+  }
+}
+
+// count + timestamps catch new, edited, and deleted messages without reading
+// message bodies. An in-place edit that leaves every timestamp untouched is not
+// detected until the session next changes; those sessions are idle in practice.
+const SESSION_SIGNATURE_SQL = `
+  SELECT session_id,
+    count(*) AS count,
+    coalesce(max(time_updated), max(time_created)) AS updated,
+    sum(coalesce(time_updated, 0)) AS updatedSum
+  FROM session_message
+  WHERE type = 'assistant'
+  GROUP BY session_id;`;
+
+function signatureOf(row) {
+  return `${row.count}:${row.updated}:${row.updatedSum}`;
+}
+
+function readSignatures(dbPath) {
+  const text = runSqliteJson(dbPath, SESSION_SIGNATURE_SQL, 64 * 1024 * 1024).trim();
+  return text ? JSON.parse(text) : [];
+}
+
+export function fetchOpenCodeUsageFromDb(options = {}) {
+  const dbPath = options.dbPath || path.join(
+    process.env.HOME ?? "",
+    ".local",
+    "share",
+    "opencode",
+    "opencode.db",
+  );
+  const dayKey = options.dayKey || localDayKey;
+  const previous = options.cache && options.cache.version === 3
+    && options.cache.sessions && typeof options.cache.sessions === "object"
+    ? options.cache.sessions
+    : {};
+
+  // Cheap change detector: one grouped scan instead of reading every message.
+  const sessions = {};
+  const changed = [];
+  for (const row of readSignatures(dbPath)) {
+    const sessionId = row.session_id;
+    const signature = signatureOf(row);
+    const cached = previous[sessionId];
+    if (cached && cached.signature === signature && cached.agents && Number.isFinite(cached.messages)) {
+      sessions[sessionId] = cached;
+    } else {
+      changed.push({ sessionId, signature });
+    }
+  }
+
+  let nextCache = sessions;
+  if (changed.length > 0) {
+    const bySession = new Map(changed.map((entry) => [entry.sessionId, []]));
+    const ids = changed.map((entry) => entry.sessionId);
+    const chunkSize = 400;
+    for (let offset = 0; offset < ids.length; offset += chunkSize) {
+      const chunk = ids.slice(offset, offset + chunkSize)
+        .map((id) => `'${String(id).replaceAll("'", "''")}'`)
+        .join(",");
+      const text = runSqliteJson(
+        dbPath,
+        `SELECT session_id,
+          json_extract(data, '$.time.created') AS created,
+          time_created AS createdAt,
+          json_extract(data, '$.agent') AS agent,
+          json_extract(data, '$.model.id') AS modelID,
+          json_extract(data, '$.model.providerID') AS providerID,
+          json_extract(data, '$.cost') AS cost,
+          json_extract(data, '$.tokens') AS tokens
+        FROM session_message
+        WHERE type = 'assistant' AND json_extract(data, '$.tokens') IS NOT NULL
+          AND session_id IN (${chunk})
+        ORDER BY time_created;`,
+      ).trim();
+      const rows = text ? JSON.parse(text) : [];
+      for (const row of rows) {
+        const messages = bySession.get(row.session_id);
+        if (!messages) continue;
+        messages.push({
+          role: "assistant",
+          agent: row.agent || "unknown",
+          modelID: row.modelID || undefined,
+          providerID: row.providerID || undefined,
+          cost: Number(row.cost) || 0,
+          tokens: JSON.parse(row.tokens),
+          time: { created: Number(row.created ?? row.createdAt) },
+        });
+      }
+    }
+
+    for (const entry of changed) {
+      const messages = bySession.get(entry.sessionId) ?? [];
+      sessions[entry.sessionId] = {
+        agents: aggregateByAgent(messages, dayKey),
+        messages: messages.length,
+        signature: entry.signature,
+      };
+    }
+
+    // A write between the signature scan and the detail scan would otherwise be
+    // recorded with the newer signature and the older rows, pinning stale data
+    // forever. Re-check and leave moved sessions out of the cache so the next
+    // run re-reads them.
+    const current = new Map(readSignatures(dbPath).map((row) => [row.session_id, signatureOf(row)]));
+    nextCache = {};
+    for (const [sessionId, entry] of Object.entries(sessions)) {
+      if (current.get(sessionId) === entry.signature) nextCache[sessionId] = entry;
+    }
+  }
+
+  const entries = Object.values(sessions);
+  const usageOf = (entry) => mergeUsages(Object.values(entry.agents));
+  return {
+    agents: mergeAgentMaps(entries.map((entry) => entry.agents)),
+    cache: { version: 3, sessions: nextCache },
+    fetchedSessions: changed.length,
+    messages: entries.reduce((total, entry) => total + entry.messages, 0),
+    reusedSessions: entries.length - changed.length,
+    sessions: entries.length,
+    usage: mergeUsages(entries.map(usageOf)),
+  };
 }
 
 export { emptyUsage, localDayKey };
