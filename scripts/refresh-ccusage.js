@@ -133,12 +133,6 @@ async function readValidatedExport(sourcePath, label, fileOperations) {
   return raw;
 }
 
-function makeLatestLoader(snapshotFilename) {
-  const source = `./snapshots/${snapshotFilename}`;
-  const safeSource = JSON.stringify(source).replace(/<\/script/gi, "<\\/script");
-  return `document.write('<script src=' + ${JSON.stringify(safeSource)} + '><\\/script>');\n`;
-}
-
 async function publishJson(filePath, value, fileOperations) {
   await writeAtomically(filePath, `${JSON.stringify(value, null, 2)}\n`, fileOperations);
 }
@@ -151,7 +145,6 @@ export async function refresh(options = {}) {
   const snapshotDirectory = path.join(dataRoot, "snapshots");
   const latestJsonPath = path.join(dataRoot, "latest.json");
   const latestDataPath = path.join(dataRoot, "latest-data.json");
-  const latestLoaderPath = path.join(dataRoot, "latest.js");
   const fileOperations = withFileOperations(options.fileOperations);
   const provider = options.provider || "codex";
   if (provider !== "codex" && provider !== "claude") {
@@ -211,11 +204,6 @@ export async function refresh(options = {}) {
   };
   await publishJson(latestDataPath, snapshotData, fileOperations);
   await publishJson(latestJsonPath, latest, fileOperations);
-  await writeAtomically(
-    latestLoaderPath,
-    makeLatestLoader(path.basename(snapshotPath)),
-    fileOperations,
-  );
 
   return {
     latestDataPath,
@@ -233,7 +221,6 @@ export async function publishSnapshot(sources, options = {}) {
   const snapshotDirectory = path.join(dataRoot, "snapshots");
   const latestJsonPath = path.join(dataRoot, "latest.json");
   const latestDataPath = path.join(dataRoot, "latest-data.json");
-  const latestLoaderPath = path.join(dataRoot, "latest.js");
   const fileOperations = withFileOperations(options.fileOperations);
   const now = options.now ? options.now() : new Date();
   const timestamp = formatTimestamp(now);
@@ -252,11 +239,6 @@ export async function publishSnapshot(sources, options = {}) {
   await writeAtomically(snapshotPath, serializeSnapshot(snapshotData), fileOperations);
 
   await publishJson(latestDataPath, snapshotData, fileOperations);
-  await writeAtomically(
-    latestLoaderPath,
-    makeLatestLoader(path.basename(snapshotPath)),
-    fileOperations,
-  );
   // Publish the pointer last: ?live=1 polls it, so it must never advertise
   // data that the other pointers have not caught up with.
   await publishJson(latestJsonPath, {
@@ -305,4 +287,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   });
 }
 
-export { makeLatestLoader, readManifest, timestampFor };
+export { readManifest, timestampFor };

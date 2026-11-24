@@ -191,7 +191,7 @@ test("an invalid exporter result leaves the prior latest state active", async (t
   assert.equal(await readFile(first.manifestPath, "utf8"), previousManifest);
 });
 
-test("the latest browser loader selects the published transformed snapshot", async (t) => {
+test("the published snapshot carries the transformed data for the browser", async (t) => {
   const projectRoot = await makeProject(t);
   const { refresh } = await import(refreshUrl);
   const result = await refresh({
@@ -200,19 +200,11 @@ test("the latest browser loader selects the published transformed snapshot", asy
     now: () => new Date("2026-08-01T02:00:00.000Z"),
     runExporter: async () => JSON.stringify(validExport()),
   });
-  const loader = await readFile(path.join(projectRoot, "data/latest.js"), "utf8");
-  const snapshot = await readFile(result.snapshotPath, "utf8");
-  const context = {
-    document: {
-      write(value) {
-        assert.match(value, /snapshots\/usage-20260801T020000Z\.js/);
-        vm.runInNewContext(snapshot, context);
-      },
-    },
-    window: {},
-  };
+  const pointer = JSON.parse(await readFile(path.join(projectRoot, "data", "latest.json"), "utf8"));
+  assert.equal(pointer.snapshot, "snapshots/usage-20260801T020000Z.js");
 
-  vm.runInNewContext(loader, context);
+  const context = { window: {} };
+  vm.runInNewContext(await readFile(result.snapshotPath, "utf8"), context);
   assert.deepEqual(
     JSON.parse(JSON.stringify(context.window.CODEX_USAGE_DATA.users[0].data)),
     validExport(),
