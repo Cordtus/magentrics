@@ -22,17 +22,20 @@ function reason(error) {
 }
 
 async function collectOpenCode(options) {
-  const server = options.server || await ensureOpenCodeServer(options);
+  // A database path is the offline path: no server to probe or spawn.
+  const server = options.dbPath
+    ? null
+    : options.server || await ensureOpenCodeServer(options);
   try {
     const collected = await collectOpenCodeUsage({
       ...options,
-      baseUrl: options.baseUrl || server.baseUrl,
+      baseUrl: options.dbPath ? undefined : options.baseUrl || server.baseUrl,
     });
     return hasUsage(collected.usage)
       ? { id: "opencode", name: LABELS.opencode, raw: collected.usage }
       : null;
   } finally {
-    if (!options.server) await server.stop();
+    if (server && !options.server) await server.stop();
   }
 }
 

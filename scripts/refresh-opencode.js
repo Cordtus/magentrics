@@ -36,7 +36,7 @@ Options:
   --help                Show this help
 `;
 
-function parseArgs(args) {
+export function parseArgs(args) {
   const options = {};
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -52,11 +52,19 @@ function parseArgs(args) {
       options.skipUnchanged = true;
       continue;
     }
-    if (arg === "--db" || arg === "--base-url" || arg === "--directory" || arg === "--cache" || arg === "--days") {
+    if (arg in PATH_OPTIONS) {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${arg} requires a value`);
-      const key = arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-      options[key] = arg === "--days" ? Number(value) : value;
+      options[PATH_OPTIONS[arg]] = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--days") {
+      const value = args[index + 1];
+      if (value === undefined || !Number.isFinite(Number(value))) {
+        throw new Error("--days requires a number");
+      }
+      options.days = Number(value);
       index += 1;
       continue;
     }
@@ -67,6 +75,14 @@ function parseArgs(args) {
 
 const READY_TIMEOUT_MS = 15_000;
 const READY_POLL_MS = 250;
+// Flag names do not match their option keys; mapping them by string surgery
+// silently dropped the value (--db landed on `options.db`, --cache on `cache`).
+const PATH_OPTIONS = {
+  "--db": "dbPath",
+  "--base-url": "baseUrl",
+  "--directory": "directory",
+  "--cache": "cachePath",
+};
 
 function isLoopback(baseUrl) {
   try {
@@ -316,7 +332,11 @@ export async function runOpenCodeRefresh(options = {}) {
   let started = false;
   let result;
   try {
-    if (options.server) {
+    // --db is the offline path: read the database directly instead of probing
+    // for (or spawning) a server that the run would not use anyway.
+    if (options.dbPath) {
+      result = await run(undefined);
+    } else if (options.server) {
       result = await run(options.server.baseUrl);
     } else {
       const outcome = await withOpenCodeServer(options, run);
@@ -332,14 +352,9 @@ export async function runOpenCodeRefresh(options = {}) {
   }
 
   try {
-    const dataRoot = options.dataRoot ?? path.join(defaultProjectRoot, "data");
-    const dbPath = options.dbPath ?? path.join(
-      process.env.HOME ?? "",
-      ".local",
-      "share",
-      "opencode",
-      "opencode.db",
-    );
+    const dataRoot = options.dataRoot
+      ?? path.join(path.resolve(options.projectRoot || defaultProjectRoot), "data");
+    const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
     const report = buildPerformance(dbPath, options.days ?? 30);
     await writeAtomically(
       path.join(dataRoot, "opencode-perf.json"),

@@ -13,6 +13,14 @@ import { ensureOpenCodeServer, runOpenCodeRefresh } from "./refresh-opencode.js"
 const PROVIDERS = ["codex", "claude", "opencode", "combined"];
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_PORT = 8765;
+// Flag names do not match their option keys, and getting this wrong silently
+// drops the value (--db used to land on `options.db` and be ignored).
+const PATH_OPTIONS = {
+  "--db": "dbPath",
+  "--base-url": "baseUrl",
+  "--directory": "directory",
+  "--cache": "cachePath",
+};
 
 const USAGE = `Usage: node scripts/refresh.js [provider] [mode] [options]
 
@@ -101,10 +109,10 @@ export function parseArgs(args) {
       index += 1;
       continue;
     }
-    if (arg === "--db" || arg === "--base-url" || arg === "--directory" || arg === "--cache") {
+    if (arg in PATH_OPTIONS) {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${arg} requires a value`);
-      options[arg.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = value;
+      options[PATH_OPTIONS[arg]] = value;
       index += 1;
       continue;
     }

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const combinedUrl = pathToFileURL(
-  path.resolve(import.meta.dirname, "../scripts/refresh-combined.js"),
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../scripts/refresh-combined.js"),
 ).href;
 
 const utcDayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -101,6 +102,30 @@ test("refreshCombined publishes one source per provider and skips empty ones", a
 
   const bundle = JSON.parse(await readFile(path.join(projectRoot, "data", "latest-data.json"), "utf8"));
   assert.deepEqual(bundle.users.map((user) => user.id), ["codex", "opencode"]);
+});
+
+test("refreshCombined reads opencode from the database when a --db path is given", async (t) => {
+  const projectRoot = await makeProject(t);
+  const dbPath = path.join(projectRoot, "opencode.db");
+  execFileSync("sqlite3", [
+    dbPath,
+    `CREATE TABLE session_message (id text, session_id text, type text, seq integer, time_created integer, time_updated integer, data text);
+     INSERT INTO session_message VALUES
+       ('m1','s1','assistant',1,1786000000000,1786000000000,
+        '{"time":{"created":1786000000000},"agent":"build","model":{"id":"m","providerID":"p"},"cost":0.5,"tokens":{"input":10,"output":5,"reasoning":2,"cache":{"read":100,"write":0}}}');`,
+  ]);
+  const { refreshCombined } = await import(combinedUrl);
+
+  const result = await refreshCombined({
+    projectRoot,
+    dbPath,
+    dayKey: utcDayKey,
+    fetchImpl: () => { throw new Error("--db must not probe the opencode server"); },
+    runCcusage: async () => JSON.stringify({ daily: [], totals: {} }),
+    now: () => new Date("2026-08-06T12:00:00.000Z"),
+  });
+
+  assert.deepEqual(result.sources.map((source) => source.id), ["opencode"]);
 });
 
 test("refreshCombined reports when no provider returns usage", async (t) => {

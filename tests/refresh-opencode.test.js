@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -232,6 +233,43 @@ test("withOpenCodeServer refuses to start a server for a remote address", async 
     /Cannot reach the opencode server/,
   );
   assert.equal(spawned, 0);
+});
+
+test("runOpenCodeRefresh reads the database directly when --db is given", async (t) => {
+  const projectRoot = await makeProject(t);
+  const dbPath = path.join(projectRoot, "opencode.db");
+  execFileSync("sqlite3", [
+    dbPath,
+    `CREATE TABLE session_message (id text, session_id text, type text, seq integer, time_created integer, time_updated integer, data text);
+     INSERT INTO session_message VALUES
+       ('m1','s1','assistant',1,1795000000000,1795000000000,
+        '{"time":{"created":1795000000000},"agent":"build","model":{"id":"m","providerID":"p"},"cost":0.5,"tokens":{"input":10,"output":5,"reasoning":2,"cache":{"read":100,"write":0}}}');`,
+  ]);
+  const { runOpenCodeRefresh } = await import(publisherUrl);
+
+  const result = await runOpenCodeRefresh({
+    dbPath,
+    projectRoot,
+    quiet: true,
+    fetchImpl: () => { throw new Error("--db must not probe the opencode server"); },
+    spawn: () => { throw new Error("--db must not spawn the opencode server"); },
+  });
+
+  assert.equal(result.started, false);
+  assert.equal(result.messages, 1);
+  assert.equal(result.agents[0].name, "build");
+  // Perf output must land in the temp project, never in the real checkout.
+  await assert.doesNotReject(readFile(path.join(projectRoot, "data", "opencode-perf.json"), "utf8"));
+});
+
+test("opencode flag names map to the option keys consumers read", async () => {
+  const { parseArgs } = await import(publisherUrl);
+
+  assert.equal(parseArgs(["--db", "u.db"]).dbPath, "u.db");
+  assert.equal(parseArgs(["--cache", "c.json"]).cachePath, "c.json");
+  assert.equal(parseArgs(["--base-url", "http://127.0.0.1:5000"]).baseUrl, "http://127.0.0.1:5000");
+  assert.equal(parseArgs(["--directory", "/tmp/x"]).directory, "/tmp/x");
+  assert.equal(parseArgs(["--days", "7"]).days, 7);
 });
 
 test("skipUnchanged does not republish identical opencode usage", async (t) => {

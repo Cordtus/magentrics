@@ -239,7 +239,8 @@ test("refresh.js parseArgs takes the provider as the first argument", async () =
   assert.equal(parseArgs(["codex"]).provider, "codex");
   assert.equal(parseArgs(["claude"]).provider, "claude");
   assert.equal(parseArgs(["opencode"]).provider, "opencode");
-  assert.deepEqual(parseArgs(["opencode", "--cache", "x.json"]).cache, "x.json");
+  assert.deepEqual(parseArgs(["opencode", "--cache", "x.json"]).cachePath, "x.json");
+  assert.equal(parseArgs(["opencode", "--db", "u.db"]).dbPath, "u.db");
   assert.throws(() => parseArgs(["codex", "claude"]), /Choose only one provider/);
   assert.throws(() => parseArgs(["gemini"]), /Unknown provider/);
 });
